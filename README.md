@@ -1,16 +1,22 @@
-# isan
+# Isan 📝
 
-A new Flutter project.
+A clean, Offline-First notes application built with Flutter, Isar Database, and Supabase. Designed for speed and seamless synchronization across devices.
 
-## Getting Started
+## 🚀 Project Roadmap
 
-This project is a starting point for a Flutter application.
+- [x] **Phase 1:** Environment Setup (Windows/Android) & Base Project Initialization.
+- [ ] **Phase 2:** Local Database & Offline Logic (In Progress...).
+  - [x] Data Model Definition (`Note`).
+  - [ ] Database Service Implementation.
+  - [ ] Basic CRUD Testing UI.
+- [ ] **Phase 3:** iOS-style UI/UX Design (Minimalist & Clean).
+- [ ] **Phase 4:** Authentication & Cloud Sync Engine (Supabase).
+- [ ] **Phase 5:** Deployment & Release (APK / EXE / Web).
 
-A few resources to get you started if this is your first Flutter project:
+## 🛠️ Tech Stack
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- **Framework:** Flutter 3.x (Windows / Android / Web)
+- **Language:** Dart
+- **Local Database:** Isar (High-performance NoSQL)
+- **Backend & Auth:** Supabase
+- **Architecture:** Offline-First
