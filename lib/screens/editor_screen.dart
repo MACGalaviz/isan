@@ -70,7 +70,7 @@ class _EditorScreenState extends State<EditorScreen> {
     noteToSave
       ..title = title
       ..content = content
-      ..updatedAt = DateTime.now();
+      ..updatedAt = DateTime.now().toUtc();
 
     _dbService.saveNote(noteToSave);
     return true; // Saved
