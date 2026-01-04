@@ -9,7 +9,7 @@ A clean, Offline-First notes application built with Flutter, Isar Database, and 
   - [x] Data Model Definition (`Note`).
   - [x] Database Service Implementation.
   - [x] Basic CRUD Testing UI.
-- [ ] **Phase 3:** iOS-style UI/UX Design (Minimalist & Clean).
+- [x] **Phase 3:** iOS-style UI/UX Design (Minimalist & Clean).
 - [ ] **Phase 4:** Authentication & Cloud Sync Engine (Supabase).
 - [ ] **Phase 5:** Deployment & Release (APK / EXE / Web).
 
