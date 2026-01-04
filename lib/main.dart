@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:isan/services/database_service.dart';
-import 'package:isan/screens/home_screen.dart'; 
-import 'package:isan/theme/app_theme.dart';     
+import 'package:isan/screens/home_screen.dart';
+import 'package:isan/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Global Notifier to manage Theme State
 // By default, it follows the system setting
@@ -9,6 +10,12 @@ final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://zowjsdugeslczfywrdgm.supabase.co',      
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpvd2pzZHVnZXNsY3pmeXdyZGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NTYwMjksImV4cCI6MjA4MzEzMjAyOX0.zhXNThJ46p1s_8c9KO5ipL8pPJFW1PaAN9obqHcmElw',     
+  );
+
   await DatabaseService().initialize();
   runApp(const MyApp());
 }
