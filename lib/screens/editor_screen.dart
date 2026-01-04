@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:isar/isar.dart'; 
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:uuid/uuid.dart';
@@ -20,12 +21,23 @@ class _EditorScreenState extends State<EditorScreen> {
   final FocusNode _titleFocus = FocusNode();
   final FocusNode _contentFocus = FocusNode();
 
+  late Note _note; 
+
   @override
   void initState() {
     super.initState();
+    
     if (widget.note != null) {
-      _titleController.text = widget.note!.title;
-      _contentController.text = widget.note!.content;
+      _note = widget.note!;
+      _titleController.text = _note.title;
+      _contentController.text = _note.content;
+    } else {
+      _note = Note()
+        ..uuid = const Uuid().v4()
+        ..userId = "local_user"
+        ..title = ""
+        ..content = ""
+        ..isSynced = false;
     }
   }
 
@@ -38,50 +50,40 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
-  // Smart Save/Delete Logic
-  // Returns TRUE if an operation (save/delete) was performed, FALSE if nothing changed.
-  bool _saveOrDelete() {
+  // FIX 1: Convertimos esto a Future para poder esperar a la base de datos
+  Future<bool> _saveOrDelete() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
-    // CASE 0: No changes detected (Existing note)
-    // If the note exists AND the text matches exactly what we started with -> Do nothing.
-    if (widget.note != null && 
-        widget.note!.title == title && 
-        widget.note!.content == content) {
+    if (_note.title == title && _note.content == content) {
       return false; 
     }
     
-    // CASE 1: Empty Note
     if (title.isEmpty && content.isEmpty) {
-      if (widget.note != null) {
-        _dbService.deleteNote(widget.note!.id);
-        return true; // Deleted
+      if (_note.id != Isar.autoIncrement) {
+        await _dbService.deleteNote(_note.id); // Await añadido
+        return true; 
       }
-      return false; // Nothing to save
+      return false; 
     }
 
-    // CASE 2: Save valid note
-    final noteToSave = widget.note ?? Note()
-      ..uuid = const Uuid().v4()
-      ..userId = "local_user"
-      ..isSynced = false;
-
-    noteToSave
+    _note
       ..title = title
       ..content = content
-      ..updatedAt = DateTime.now().toUtc();
+      ..updatedAt = DateTime.now().toUtc()
+      ..isSynced = false;
 
-    _dbService.saveNote(noteToSave);
-    return true; // Saved
+    // FIX 2: Esperamos a que Isar asigne el ID antes de continuar
+    await _dbService.saveNote(_note);
+    
+    return true; 
   }
 
-  // Manual Delete
-  void _deleteNote() {
-    if (widget.note != null) {
-      _dbService.deleteNote(widget.note!.id);
+  void _deleteNote() async {
+    if (_note.id != Isar.autoIncrement) {
+      await _dbService.deleteNote(_note.id);
     }
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -91,20 +93,23 @@ class _EditorScreenState extends State<EditorScreen> {
 
     return PopScope(
       canPop: true,
-      onPopInvoked: (didPop) {
-        // Auto-save when using the back gesture
-        _saveOrDelete();
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _saveOrDelete(); // Aquí no necesitamos esperar
       },
       child: Scaffold(
         appBar: AppBar(
           actions: [
-            // Manual SAVE button
+            // Save Button
             IconButton(
-              onPressed: () {
-                // We only show the SnackBar if a change actually happened
-                bool saved = _saveOrDelete();
+              onPressed: () async { // FIX 3: Hacemos el botón async
+                // Esperamos a que termine de guardar en BD
+                bool saved = await _saveOrDelete();
                 
-                if (saved) {
+                if (saved && context.mounted) {
+                  // Ahora sí, el ID ya existe, redibujamos la pantalla
+                  setState(() {}); 
+                  
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text("Note saved"), 
@@ -117,8 +122,8 @@ class _EditorScreenState extends State<EditorScreen> {
               icon: const Icon(Icons.check),
             ),
             
-            // Delete button
-            if (widget.note != null)
+            // Delete Button (Solo si tiene ID real)
+            if (_note.id != Isar.autoIncrement)
               IconButton(
                 onPressed: () {
                   showDialog(
@@ -153,7 +158,6 @@ class _EditorScreenState extends State<EditorScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Column(
             children: [
-              // TITLE INPUT
               TextField(
                 controller: _titleController,
                 focusNode: _titleFocus,
@@ -171,10 +175,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              
               const SizedBox(height: 8),
-              
-              // CONTENT INPUT
               Expanded(
                 child: TextField(
                   controller: _contentController,
