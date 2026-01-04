@@ -1,47 +1,61 @@
 import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:isan/models/note.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:isan/services/supabase_service.dart';
 
 class DatabaseService {
-  // Singleton Pattern
-  static final DatabaseService _instance = DatabaseService._internal();
-  factory DatabaseService() => _instance;
-  DatabaseService._internal();
+  late Future<Isar> db;
+  // Instanciamos el servicio de la nube
+  final SupabaseService _supabaseService = SupabaseService();
 
-  late Isar _isar;
+  DatabaseService() {
+    db = openDB();
+  }
 
-  // Initialize Database
+  // --- FIX 1: Agregamos el método initialize que main.dart busca ---
   Future<void> initialize() async {
-    final dir = await getApplicationDocumentsDirectory();
-    _isar = await Isar.open(
-      [NoteSchema], 
-      directory: dir.path,
-    );
+    await db;
+    await _syncFromCloud();
   }
 
-  // --- CRUD Operations ---
+  Future<Isar> openDB() async {
+    if (Isar.instanceNames.isEmpty) {
+      final dir = await getApplicationDocumentsDirectory();
+      return await Isar.open(
+        [NoteSchema],
+        directory: dir.path,
+        inspector: true,
+      );
+    }
+    return Future.value(Isar.getInstance());
+  }
 
-  // 1. CREATE / UPDATE
   Future<void> saveNote(Note note) async {
-    await _isar.writeTxn(() async {
-      await _isar.notes.put(note);
+    final isar = await db;
+    
+    // 1. Guardado Local
+    await isar.writeTxn(() async {
+      await isar.notes.put(note);
     });
+
+    // 2. Sincronización Nube (Fuego y olvido)
+    _supabaseService.syncNote(note);
   }
 
-  // 2. READ (Stream with Search Logic)
-  // Updated to accept a search query
-  Stream<List<Note>> listenToNotes({String query = ''}) {
-    // If query is empty, return all notes sorted by date
+  // --- FIX 2: Simplificamos la query para evitar error de tipos ---
+  Stream<List<Note>> listenToNotes({String query = ''}) async* {
+    final isar = await db;
+    
+    // Caso A: Sin búsqueda (Retorna todo ordenado)
     if (query.isEmpty) {
-      return _isar.notes
-          .where()
+      yield* isar.notes.where()
           .sortByUpdatedAtDesc()
           .watch(fireImmediately: true);
-    } 
-    
-    // If query exists, filter by Title OR Content
-    // Case insensitive ensures "Buy" finds "buy"
-    return _isar.notes
+      return;
+    }
+
+    // Caso B: Con búsqueda (Aplica filtros directamente)
+    yield* isar.notes.where()
         .filter()
         .titleContains(query, caseSensitive: false)
         .or()
@@ -50,17 +64,67 @@ class DatabaseService {
         .watch(fireImmediately: true);
   }
 
-  // 3. DELETE
   Future<void> deleteNote(Id id) async {
-    await _isar.writeTxn(() async {
-      await _isar.notes.delete(id);
+    final isar = await db;
+    
+    // Obtenemos el UUID antes de borrar para decirle a la nube qué eliminar
+    final note = await isar.notes.get(id);
+    final String? uuidToDelete = note?.uuid;
+
+    // 1. Borrado Local
+    await isar.writeTxn(() async {
+      await isar.notes.delete(id);
     });
+
+    // 2. Borrado Nube
+    if (uuidToDelete != null) {
+      _supabaseService.deleteNote(uuidToDelete);
+    }
   }
   
-  // WIPE DB
   Future<void> cleanDb() async {
-    await _isar.writeTxn(() async {
-      await _isar.clear();
-    });
+    final isar = await db;
+    await isar.writeTxn(() => isar.clear());
   }
+
+  /// Private method: Downloads notes from Cloud and saves them to Local DB
+  Future<void> _syncFromCloud() async {
+    final isar = await db;
+    
+    // 1. Get raw data from Supabase
+    final cloudNotesData = await _supabaseService.fetchNotes();
+
+    if (cloudNotesData.isEmpty) return;
+
+    await isar.writeTxn(() async {
+      for (var map in cloudNotesData) {
+        // 2. Convert JSON back to Note object
+        // Note: We need to ensure we don't overwrite newer local changes in a real complex app,
+        // but for Phase 4.0, we will trust the cloud data.
+        
+        final note = Note()
+          ..uuid = map['id'] 
+          // FIX: Assign userId using the column name from Supabase ('user_id')
+          ..userId = map['user_id'] ?? 'local_user' 
+          ..title = map['title'] ?? ''
+          ..content = map['content'] ?? ''
+          // FIX: Assign isLocked (defaults to false if null)
+          ..isLocked = map['is_locked'] ?? false 
+          ..updatedAt = DateTime.parse(map['updated_at']).toLocal();
+
+        // 3. Put matches by ID (Index). 
+        // Problem: Isar uses int ID, Supabase uses String UUID.
+        // We need to find if this UUID exists locally to get its int ID, otherwise create new.
+        final existingNote = await isar.notes.filter().uuidMatches(note.uuid).findFirst();
+        
+        if (existingNote != null) {
+          note.id = existingNote.id; // Keep the local ID so it updates, not inserts new
+        }
+
+        await isar.notes.put(note);
+      }
+    });
+    print("🔄 Sync: Downloaded ${cloudNotesData.length} notes from cloud.");
+  }
+
 }
