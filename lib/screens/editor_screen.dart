@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:isar/isar.dart'; 
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
+import 'package:isan/services/auth_service.dart';
 import 'package:uuid/uuid.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _dbService = DatabaseService();
+  final _authService = AuthService();
   
   final FocusNode _titleFocus = FocusNode();
   final FocusNode _contentFocus = FocusNode();
@@ -26,15 +28,19 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     if (widget.note != null) {
       _note = widget.note!;
       _titleController.text = _note.title;
       _contentController.text = _note.content;
     } else {
+      // Create mode: Check if a user is logged in
+      final currentUser = _authService.currentUser;
+      final userId = currentUser?.id ?? "local_user";
+
       _note = Note()
         ..uuid = const Uuid().v4()
-        ..userId = "local_user"
+        ..userId = userId
         ..title = ""
         ..content = ""
         ..isSynced = false;

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/screens/editor_screen.dart';
+import 'package:isan/screens/auth_screen.dart';
+import 'package:isan/screens/profile_screen.dart';
 import 'package:isan/main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,6 +32,34 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       themeNotifier.value = ThemeMode.light;
     }
+  }
+
+  void _handleAuthOrProfile() {
+    // 1. Verificamos si hay usuario logueado en Supabase
+    final user = Supabase.instance.client.auth.currentUser;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // 2. Lógica condicional:
+        if (user != null) {
+          return ProfileScreen(
+            user: user,
+            dbService: dbService,
+          );
+        } else {
+          return const AuthScreen();
+        }
+      },
+    ).then((result) {
+      if (result == true) {
+        setState(() {}); 
+      }
+    });
   }
 
   @override
@@ -60,6 +91,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // THEME SWITCHER
             actions: [
+              // NEW: Auth Button
+              IconButton(
+                onPressed: _handleAuthOrProfile,
+                icon: Icon(
+                  Supabase.instance.client.auth.currentUser != null 
+                      ? Icons.account_circle 
+                      : Icons.account_circle_outlined
+                  , size: 28
+                ),
+                tooltip: 'Account',
+              ),
               Container(
                 margin: const EdgeInsets.only(right: 16),
                 child: IconButton(
