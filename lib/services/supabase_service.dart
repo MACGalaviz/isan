@@ -12,13 +12,10 @@ class SupabaseService {
   /// - If it doesn't -> Insert.
   Future<void> syncNote(Note note) async {
     try {
-      // TODO: Replace with real Auth User ID in Phase 4.2
-      const userId = "local_user"; 
-
       // Convert Note object to SQL-compatible JSON Map
       final noteData = {
         'id': note.uuid,          // Matches the UUID column in Postgres
-        'user_id': userId,
+        'user_id': note.userId,
         'title': note.title,
         'content': note.content,
         'updated_at': note.updatedAt.toIso8601String(), // Send UTC ISO string
