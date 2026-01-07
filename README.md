@@ -17,7 +17,7 @@ A clean, Offline-First notes application built with Flutter, Isar Database, and 
 - [ ] **Phase 5:** Authentication & User Management.
   - [x] Supabase Auth (Email/Password).
   - [x] Login & Sign Up Screens.
-  - [ ] Data Privatization (RLS).
+  - [x] Data Privatization (RLS).
 - [ ] **Phase 6:** Deployment & Release (APK / EXE / Web).
 
 ## 🛠️ Tech Stack
