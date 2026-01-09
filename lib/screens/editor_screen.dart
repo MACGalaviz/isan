@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:isar/isar.dart'; 
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/services/auth_service.dart';
@@ -24,6 +23,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final FocusNode _contentFocus = FocusNode();
 
   late Note _note; 
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -38,7 +38,7 @@ class _EditorScreenState extends State<EditorScreen> {
       final currentUser = _authService.currentUser;
       final userId = currentUser?.id ?? "local_user";
 
-      _note = Note()
+      _note = Note(id: -1)
         ..uuid = const Uuid().v4()
         ..userId = userId
         ..title = ""
@@ -56,37 +56,57 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
-  // FIX 1: Convertimos esto a Future para poder esperar a la base de datos
   Future<bool> _saveOrDelete() async {
+    if (_isSaving) return false;
+    _isSaving = true;
+
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
+    // No changes at all
     if (_note.title == title && _note.content == content) {
+      _isSaving = false;
       return false; 
     }
     
+    // Empty note -> Delete
     if (title.isEmpty && content.isEmpty) {
-      if (_note.id != Isar.autoIncrement) {
-        await _dbService.deleteNote(_note.id); // Await añadido
+      if (_note.id != -1) { 
+        await _dbService.deleteNote(_note.id);
+        _isSaving = false;
         return true; 
       }
-      return false; 
+      _isSaving = false;
+      return false; // Was empty and never saved, do nothing
     }
 
+    // Save changes
     _note
       ..title = title
       ..content = content
       ..updatedAt = DateTime.now().toUtc()
       ..isSynced = false;
 
-    // FIX 2: Esperamos a que Isar asigne el ID antes de continuar
-    await _dbService.saveNote(_note);
+    final savedId = await _dbService.saveNote(_note);
     
+    // Update the local ID if we were in create mode
+    if (_note.id == -1) {
+       _note = Note(id: savedId)
+        ..uuid = _note.uuid
+        ..userId = _note.userId
+        ..title = _note.title
+        ..content = _note.content
+        ..updatedAt = _note.updatedAt
+        ..isSynced = _note.isSynced
+        ..isLocked = _note.isLocked;
+    }
+    
+    _isSaving = false;
     return true; 
   }
 
   void _deleteNote() async {
-    if (_note.id != Isar.autoIncrement) {
+    if (_note.id != -1) { 
       await _dbService.deleteNote(_note.id);
     }
     if (mounted) Navigator.pop(context);
@@ -98,24 +118,30 @@ class _EditorScreenState extends State<EditorScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) {
+      // IMPORTANT CORRECTION: canPop set to false to intercept the gesture
+      canPop: false, 
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        _saveOrDelete(); // Aquí no necesitamos esperar
+
+        // 1. Save changes
+        await _saveOrDelete(); 
+
+        // 2. Now close manually
+        if (context.mounted) {
+          Navigator.of(context).pop(result);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
           actions: [
-            // Save Button
+            // Save Button (Manual)
             IconButton(
-              onPressed: () async { // FIX 3: Hacemos el botón async
-                // Esperamos a que termine de guardar en BD
+              onPressed: () async {
+                FocusScope.of(context).unfocus(); // Close keyboard
                 bool saved = await _saveOrDelete();
                 
                 if (saved && context.mounted) {
-                  // Ahora sí, el ID ya existe, redibujamos la pantalla
                   setState(() {}); 
-                  
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text("Note saved"), 
@@ -128,8 +154,8 @@ class _EditorScreenState extends State<EditorScreen> {
               icon: const Icon(Icons.check),
             ),
             
-            // Delete Button (Solo si tiene ID real)
-            if (_note.id != Isar.autoIncrement)
+            // Delete Button
+            if (_note.id != -1)
               IconButton(
                 onPressed: () {
                   showDialog(

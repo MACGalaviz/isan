@@ -1,17 +1,16 @@
-import 'package:isar/isar.dart';
+import 'package:isar_plus/isar_plus.dart';
 
-// This line connects this file with the auto-generated code
-// It will show an error until we run the code generator. That is normal.
 part 'note.g.dart';
 
 @collection
 class Note {
-  // Internal Isar ID (auto-incrementing integer)
-  Id id = Isar.autoIncrement;
+  Note({ required this.id });
+
+  final int id;
 
   // Global Unique ID (UUID). Used for synchronization with Supabase.
   // @Index makes searching by this ID instant.
-  @Index(unique: true, replace: true)
+  @Index(unique: true)
   late String uuid;
 
   // ID of the user who owns the note (for Auth later)
@@ -26,7 +25,7 @@ class Note {
 
   // Sync Status: false = pending upload to cloud
   bool isSynced = false; 
-
+  
   // UI Status: is the note locked with a password?
   bool isLocked = false;
 }
