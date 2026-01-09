@@ -1,6 +1,6 @@
 # Isan 📝
 
-A clean, Offline-First notes application built with Flutter, Isar Database, and Supabase. Designed for speed and seamless synchronization across devices.
+A clean, Offline-First notes application built with Flutter, Isar Plus, and Supabase. Designed for speed, seamless synchronization across devices, and full Web compatibility.
 
 ## 🚀 Project Roadmap
 
@@ -14,16 +14,19 @@ A clean, Offline-First notes application built with Flutter, Isar Database, and 
   - [x] Supabase Project Setup & Table Definition.
   - [x] Cloud-to-Local & Local-to-Cloud Sync Logic.
   - [x] Conflict Handling & UUID Management.
-- [ ] **Phase 5:** Authentication & User Management.
+- [x] **Phase 5:** Authentication & User Management.
   - [x] Supabase Auth (Email/Password).
   - [x] Login & Sign Up Screens.
   - [x] Data Privatization (RLS).
-- [ ] **Phase 6:** Deployment & Release (APK / EXE / Web).
+- [x] **Phase 6:** Web Compatibility & Database Migration.
+  - [x] Migrate from standard `isar` to `isar_plus`.
+  - [x] **Note:** This phase was introduced to ensure full compatibility with **Flutter Web**. The migration enables persistent offline storage in browsers using **OPFS/IndexedDB**, allowing Isar to function correctly on the web platform.
+- [ ] **Phase 7:** Deployment & Release (APK / EXE / Web).
 
 ## 🛠️ Tech Stack
 
 - **Framework:** Flutter 3.x (Windows / Android / Web)
 - **Language:** Dart
-- **Local Database:** Isar (High-performance NoSQL)
+- **Local Database:** Isar Plus (High-performance NoSQL with Web Support)
 - **Backend & Auth:** Supabase
 - **Architecture:** Offline-First
