@@ -1,6 +1,6 @@
 # Isan 📝
 
-A clean, Offline-First notes application built with Flutter, Isar Plus, and Supabase. Designed for speed, seamless synchronization across devices, and full Web compatibility.
+A clean, Offline-First notes application built with Flutter, Drift (SQLite), and Supabase. Designed for speed, seamless synchronization across devices, and full Web compatibility.
 
 ## 🚀 Project Roadmap
 
@@ -18,15 +18,21 @@ A clean, Offline-First notes application built with Flutter, Isar Plus, and Supa
   - [x] Supabase Auth (Email/Password).
   - [x] Login & Sign Up Screens.
   - [x] Data Privatization (RLS).
-- [x] **Phase 6:** Web Compatibility & Database Migration.
+- [x] **Phase 6:** Web Compatibility Attempt (Isar Plus).
   - [x] Migrate from standard `isar` to `isar_plus`.
-  - [x] **Note:** This phase was introduced to ensure full compatibility with **Flutter Web**. The migration enables persistent offline storage in browsers using **OPFS/IndexedDB**, allowing Isar to function correctly on the web platform.
-- [ ] **Phase 7:** Deployment & Release (APK / EXE / Web).
+  - [x] **Outcome:** Successfully migrated, but encountered critical limitations with Browser Security (Web Workers/Isolates) preventing automatic UI updates (Watchers) on the Web.
+- [x] **Phase 7:** Final Database Migration (Drift / SQLite).
+  - [x] Remove Isar dependencies.
+  - [x] Implement Drift (SQLite) using `sqlite3.wasm` and `drift_worker.js` for non-blocking Web Workers.
+  - [x] Re-implement Database Service using SQL tables.
+  - [x] Verify native Streams (Watchers) on Web, Android, and Windows.
+- [ ] **Phase 8:** Deployment & Release (APK / EXE / Web).
+- [ ] **Phase 9:** iOS Deployment (IPA / TestFlight).
 
 ## 🛠️ Tech Stack
 
 - **Framework:** Flutter 3.x (Windows / Android / Web)
 - **Language:** Dart
-- **Local Database:** Isar Plus (High-performance NoSQL with Web Support)
+- **Local Database:** Drift (SQLite) - *Chosen for robust Web support (WASM/OPFS)*
 - **Backend & Auth:** Supabase
 - **Architecture:** Offline-First
