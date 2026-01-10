@@ -1,6 +1,6 @@
-import 'package:isar_plus/isar_plus.dart';
-import 'package:isan/models/note.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:drift/drift.dart';
+import 'package:isan/db/database.dart'; // Importamos la DB que creaste
+import 'package:isan/models/note.dart'; // Importamos tu modelo UI
 import 'package:isan/services/supabase_service.dart';
 
 class DatabaseService {
@@ -9,19 +9,15 @@ class DatabaseService {
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  late Isar isar;
+  // Referencia a la base de datos Drift
+  late AppDatabase db;
   
   final SupabaseService _supabaseService = SupabaseService();
 
-  ///Initialize the database and launch the synchronization
+  /// Initialize the database and launch the synchronization
   Future<void> initialize() async {
-    final dir = await getApplicationDocumentsDirectory();
-    
-    // 1. Open Isar (Isar Plus syntax)
-    isar = Isar.open(
-      schemas: [NoteSchema],
-      directory: dir.path,
-    );
+    // 1. Instanciamos Drift (se encarga solo de abrir archivos o web/wasm)
+    db = AppDatabase();
 
     // 2. Synchronize
     await _syncFromCloud();
@@ -29,46 +25,36 @@ class DatabaseService {
 
   /// Save a note. Returns the ID of the saved note.
   Future<int> saveNote(Note note) async {
-    // Step 1: Save to Isar (Local)
-    // Remove 'async' internally and 'awaits' because writeAsync runs in another synchronous thread
-    final int savedId = await isar.writeAsync((isar) { 
-      
-      // If the ID is -1, it means it's a NEW note in memory
-      if (note.id == -1) {
-        final newId = isar.notes.autoIncrement();
-        
-        // Create a copy with the new ID
-        final newNote = Note(id: newId)
-          ..uuid = note.uuid
-          ..userId = note.userId
-          ..title = note.title
-          ..content = note.content
-          ..updatedAt = note.updatedAt
-          ..isSynced = note.isSynced
-          ..isLocked = note.isLocked;
+    int savedId;
 
-        isar.notes.put(newNote); 
-        return newId; // Return the int directly
-      } else {
-        // Normal update
-        isar.notes.put(note);
-        return note.id;
-      }
-    });
+    // Convertimos tu modelo UI (Note) a un modelo de inserción Drift (NotesCompanion)
+    final companion = NotesCompanion(
+      // Si el ID es -1, no lo enviamos (Value.absent) para que SQLite genere uno nuevo.
+      // Si ya existe, lo enviamos para actualizar esa fila.
+      id: note.id == -1 ? const Value.absent() : Value(note.id),
+      uuid: Value(note.uuid),
+      userId: Value(note.userId),
+      title: Value(note.title),
+      content: Value(note.content),
+      updatedAt: Value(note.updatedAt),
+      isSynced: Value(note.isSynced),
+      isLocked: Value(note.isLocked),
+    );
+
+    // Step 1: Save to Drift (Local)
+    if (note.id == -1) {
+      // INSERT: Crea una nueva
+      savedId = await db.into(db.notes).insert(companion);
+    } else {
+      // UPDATE: Reemplaza si existe (conflicto en ID)
+      await db.into(db.notes).insertOnConflictUpdate(companion);
+      savedId = note.id;
+    }
 
     // Step 2: Synchronize with Supabase (Cloud)
-    // This is done OUTSIDE the writeAsync to avoid blocking the DB and to allow using await
     try {
-      // Reconstruct the object to send it with the correct ID
-      final noteToSync = Note(id: savedId)
-          ..uuid = note.uuid
-          ..userId = note.userId
-          ..title = note.title
-          ..content = note.content
-          ..updatedAt = note.updatedAt
-          ..isSynced = note.isSynced
-          ..isLocked = note.isLocked;
-
+      // Reconstruct the object with the definitive ID
+      final noteToSync = note.copyWith(id: savedId);
       await _supabaseService.syncNote(noteToSync);
       print("✅ Note uploaded to Supabase correctly.");
     } catch (e) {
@@ -79,32 +65,36 @@ class DatabaseService {
   }
 
   /// Stream of notes with optional search
-  Stream<List<Note>> listenToNotes({String query = ''}) async* {
+  /// Drift soporta streams en WEB nativamente, ¡así que esto funcionará solo!
+  Stream<List<Note>> listenToNotes({String query = ''}) {
+    SimpleSelectStatement<$NotesTable, NoteDb> selectQuery;
+
     if (query.isEmpty) {
-      yield* isar.notes.where()
-          .sortByUpdatedAtDesc()
-          .watch(fireImmediately: true);
+      // Select all, ordered by date
+      selectQuery = db.select(db.notes)
+        ..orderBy([(t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc)]);
     } else {
-      yield* isar.notes.where()
-          .titleContains(query, caseSensitive: false)
-          .or()
-          .contentContains(query, caseSensitive: false)
-          .sortByUpdatedAtDesc()
-          .watch(fireImmediately: true);
+      // Select with filter
+      selectQuery = db.select(db.notes)
+        ..where((t) => t.title.contains(query) | t.content.contains(query))
+        ..orderBy([(t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc)]);
     }
+
+    // .watch() convierte la query en Stream.
+    // .map() convierte la lista de 'NoteDb' (Drift) a tu lista de 'Note' (UI).
+    return selectQuery.watch().map((rows) {
+      return rows.map((row) => _mapToModel(row)).toList();
+    });
   }
 
   /// Delete note
   Future<void> deleteNote(int id) async {
-    // Get the UUID before deleting (Asynchronous read safe outside txn)
-    final note = await isar.notes.getAsync(id); 
-    final String? uuidToDelete = note?.uuid;
+    // Get UUID before deleting (needed for cloud sync)
+    final noteDb = await (db.select(db.notes)..where((t) => t.id.equals(id))).getSingleOrNull();
+    final String? uuidToDelete = noteDb?.uuid;
 
     // 1. Local deletion
-    // CORRECTION: Remove 'async' here inside. It's mandatory in Isar Plus.
-    await isar.writeAsync((isar) {
-      isar.notes.delete(id); // Without await
-    });
+    await (db.delete(db.notes)..where((t) => t.id.equals(id))).go();
 
     // 2. Cloud deletion
     if (uuidToDelete != null) {
@@ -119,43 +109,54 @@ class DatabaseService {
   
   /// Clean DB
   Future<void> cleanDb() async {
-    // CORRECTION: Remove 'async' here inside.
-    await isar.writeAsync((isar) {
-      isar.clear(); // Without await
-    });
+    await db.delete(db.notes).go();
   }
 
   /// Download notes from the cloud and save them locally
   Future<void> _syncFromCloud() async {
     final cloudNotesData = await _supabaseService.fetchNotes();
-
     if (cloudNotesData.isEmpty) return;
 
-    // Correction: Remove 'async' here inside.
-    await isar.writeAsync((isar) { 
+    // Drift Transaction: Ejecuta todo en bloque para mayor velocidad
+    await db.transaction(() async {
       for (var map in cloudNotesData) {
         final String uuid = map['id'];
 
-        // Correction: Use findFirst (synchronous)
-        final existingNote = isar.notes
-            .where()
-            .uuidEqualTo(uuid)
-            .findFirst(); 
+        // Check if exists locally by UUID
+        final existingNote = await (db.select(db.notes)..where((t) => t.uuid.equals(uuid))).getSingleOrNull();
         
-        final int dbId = existingNote?.id ?? isar.notes.autoIncrement();
+        // Prepare data
+        final companion = NotesCompanion(
+          id: existingNote != null ? Value(existingNote.id) : const Value.absent(),
+          uuid: Value(uuid),
+          userId: Value(map['user_id'] ?? 'local_user'),
+          title: Value(map['title'] ?? ''),
+          content: Value(map['content'] ?? ''),
+          updatedAt: Value(DateTime.parse(map['updated_at']).toLocal()),
+          isSynced: const Value(true), // Viene de la nube, ya está synced
+          isLocked: Value(map['is_locked'] ?? false),
+        );
 
-        final note = Note(id: dbId)
-          ..uuid = uuid
-          ..userId = map['user_id'] ?? 'local_user'
-          ..title = map['title'] ?? ''
-          ..content = map['content'] ?? ''
-          ..isLocked = map['is_locked'] ?? false 
-          ..updatedAt = DateTime.parse(map['updated_at']).toLocal()
-          ..isSynced = true;
-
-        isar.notes.put(note); 
+        // Insert or Update
+        await db.into(db.notes).insertOnConflictUpdate(companion);
       }
     });
+    
     print("🔄 Sync: Downloaded ${cloudNotesData.length} notes from cloud.");
+  }
+
+  // --- Helper: Mapper ---
+  // Convierte el objeto interno de Drift (NoteDb) a tu objeto de UI (Note)
+  Note _mapToModel(NoteDb row) {
+    return Note(
+      id: row.id,
+      uuid: row.uuid,
+      userId: row.userId,
+      title: row.title,
+      content: row.content,
+      updatedAt: row.updatedAt,
+      isSynced: row.isSynced,
+      isLocked: row.isLocked,
+    );
   }
 }

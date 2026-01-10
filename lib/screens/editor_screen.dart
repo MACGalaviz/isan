@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/services/auth_service.dart';
-import 'package:uuid/uuid.dart';
+import 'package:uuid/uuid.dart'; // Asegúrate de tener uuid en pubspec.yaml
+import 'package:supabase_flutter/supabase_flutter.dart'; // Para obtener el usuario actual
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -30,20 +31,26 @@ class _EditorScreenState extends State<EditorScreen> {
     super.initState();
 
     if (widget.note != null) {
+      // EDIT MODE
       _note = widget.note!;
       _titleController.text = _note.title;
       _contentController.text = _note.content;
     } else {
-      // Create mode: Check if a user is logged in
-      final currentUser = _authService.currentUser;
-      final userId = currentUser?.id ?? "local_user";
+      // CREATE MODE
+      // Obtenemos el ID del usuario de Supabase (o 'local_user' si no hay sesión)
+      final userId = Supabase.instance.client.auth.currentUser?.id ?? "local_user";
 
-      _note = Note(id: -1)
-        ..uuid = const Uuid().v4()
-        ..userId = userId
-        ..title = ""
-        ..content = ""
-        ..isSynced = false;
+      // Inicializamos con TODOS los campos obligatorios
+      _note = Note(
+        id: -1, // -1 indica que aún no existe en SQLite
+        uuid: const Uuid().v4(), // Generamos UUID único ahora mismo
+        userId: userId,
+        title: "",
+        content: "",
+        updatedAt: DateTime.now(), // Drift maneja DateTime nativo
+        isSynced: false,
+        isLocked: false,
+      );
     }
   }
 
@@ -63,13 +70,13 @@ class _EditorScreenState extends State<EditorScreen> {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
-    // No changes at all
+    // 1. Check if there are no changes
     if (_note.title == title && _note.content == content) {
       _isSaving = false;
       return false; 
     }
     
-    // Empty note -> Delete
+    // 2. Empty note -> Delete
     if (title.isEmpty && content.isEmpty) {
       if (_note.id != -1) { 
         await _dbService.deleteNote(_note.id);
@@ -80,26 +87,21 @@ class _EditorScreenState extends State<EditorScreen> {
       return false; // Was empty and never saved, do nothing
     }
 
-    // Save changes
-    _note
-      ..title = title
-      ..content = content
-      ..updatedAt = DateTime.now().toUtc()
-      ..isSynced = false;
+    // 3. Save changes
+    // IMPORTANTE: Note es inmutable, usamos copyWith para crear la versión actualizada
+    final updatedNote = _note.copyWith(
+      title: title,
+      content: content,
+      updatedAt: DateTime.now().toUtc(), // Guardamos en UTC para evitar líos de zona horaria
+      isSynced: false, // Marcamos como no sincronizado para que el Sync Engine lo suba
+    );
 
-    final savedId = await _dbService.saveNote(_note);
+    // Guardamos en DB (Drift devolverá el ID numérico insertado/actualizado)
+    final savedId = await _dbService.saveNote(updatedNote);
     
-    // Update the local ID if we were in create mode
-    if (_note.id == -1) {
-       _note = Note(id: savedId)
-        ..uuid = _note.uuid
-        ..userId = _note.userId
-        ..title = _note.title
-        ..content = _note.content
-        ..updatedAt = _note.updatedAt
-        ..isSynced = _note.isSynced
-        ..isLocked = _note.isLocked;
-    }
+    // 4. Update local state
+    // Actualizamos nuestra variable local con el ID definitivo (útil si era una nota nueva)
+    _note = updatedNote.copyWith(id: savedId);
     
     _isSaving = false;
     return true; 
@@ -118,15 +120,13 @@ class _EditorScreenState extends State<EditorScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return PopScope(
-      // IMPORTANT CORRECTION: canPop set to false to intercept the gesture
       canPop: false, 
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // 1. Save changes
+        // Auto-save on exit
         await _saveOrDelete(); 
 
-        // 2. Now close manually
         if (context.mounted) {
           Navigator.of(context).pop(result);
         }
@@ -137,7 +137,7 @@ class _EditorScreenState extends State<EditorScreen> {
             // Save Button (Manual)
             IconButton(
               onPressed: () async {
-                FocusScope.of(context).unfocus(); // Close keyboard
+                FocusScope.of(context).unfocus();
                 bool saved = await _saveOrDelete();
                 
                 if (saved && context.mounted) {
@@ -154,7 +154,7 @@ class _EditorScreenState extends State<EditorScreen> {
               icon: const Icon(Icons.check),
             ),
             
-            // Delete Button
+            // Delete Button (Only if it's an existing note)
             if (_note.id != -1)
               IconButton(
                 onPressed: () {
