@@ -1,1 +1,7 @@
-{"app_name":"isan","version":"1.0.0","build_number":"1","package_name":"isan"}
+{
+  "version": "1.0.0",
+  "build_number": 1,
+  "changelog": "- Initial Web Release",
+  "download_url_android": "https://github.com/MACGalaviz/isan/releases/download/v1.0.0/app-release.apk",
+  "download_url_windows": ""
+}
