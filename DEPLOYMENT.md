@@ -149,5 +149,12 @@ When you are ready to ship a new version (e.g., v1.0.1):
     * Edit `web/version.json` (in `gh-pages` branch).
     * Update `"version": "1.0.1"`.
     * Paste the link in `"download_url_android"`.
-    * Commit & Push.
+    * **Deploy to Web:**
+      ```bash
+      git add .
+      git commit -m "🚀 chore(release): release v1.0.1"
+      git push origin main
+      dart pub global run peanut --extra-args "--base-href=/isan/"
+      git push origin gh-pages
+      ```
     * *Users will now see the update alert.*

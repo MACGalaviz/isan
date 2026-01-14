@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -23,8 +24,16 @@ class UpdateChecker {
         
         // Leemos TUS campos específicos del JSON
         String latestVersion = data['version'];
-        String downloadUrl = data['download_url_android'] ?? ""; // Si no existe, queda vacío
         String changelog = data['changelog'] ?? "Mejoras generales";
+        
+        // Lógica Multi-Plataforma 💻📱
+        String downloadUrl = "";
+        
+        if (Platform.isAndroid) {
+          downloadUrl = data['download_url_android'] ?? "";
+        } else if (Platform.isWindows) {
+          downloadUrl = data['download_url_windows'] ?? "";
+        }
 
         // 3. Comparación Inteligente
         // Solo avisamos si la versión es distinta Y si hay un link de descarga configurado
