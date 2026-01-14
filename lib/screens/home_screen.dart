@@ -6,6 +6,7 @@ import 'package:isan/screens/auth_screen.dart';
 import 'package:isan/screens/profile_screen.dart';
 import 'package:isan/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:isan/services/update_checker.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final DatabaseService dbService = DatabaseService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        UpdateChecker.checkForUpdates(context);
+      }
+    });
+  }
 
   @override
   void dispose() {
