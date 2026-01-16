@@ -116,8 +116,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final theme = Theme.of(context);
 
     return PopScope(
       canPop: false, 
@@ -145,8 +144,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text("Note saved"), 
-                      duration: const Duration(seconds: 1),
-                      backgroundColor: primaryColor,
+                      duration: const Duration(seconds: 2),
                     ),
                   );
                 }
@@ -161,12 +159,20 @@ class _EditorScreenState extends State<EditorScreen> {
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
-                      title: const Text("Delete Note?"),
-                      content: const Text("This action cannot be undone."),
+                      title: Text(
+                        "Delete Note?",
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                      content: Text(
+                        "This action cannot be undone.",
+                        style: theme.textTheme.bodyLarge,
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          style: TextButton.styleFrom(foregroundColor: textColor),
+                          
                           child: const Text("Cancel"),
                         ),
                         TextButton(
@@ -174,7 +180,9 @@ class _EditorScreenState extends State<EditorScreen> {
                             Navigator.pop(ctx);
                             _deleteNote();
                           },
-                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          style: TextButton.styleFrom(
+                            foregroundColor: theme.colorScheme.error,
+                          ),
                           child: const Text("Delete"),
                         ),
                       ],
@@ -197,11 +205,8 @@ class _EditorScreenState extends State<EditorScreen> {
                   FocusScope.of(context).requestFocus(_contentFocus);
                 },
                 textInputAction: TextInputAction.next, 
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                decoration: const InputDecoration(
+                style: Theme.of(context).textTheme.titleLarge,
+                decoration: InputDecoration(
                   hintText: 'Title',
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
@@ -212,10 +217,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 child: TextField(
                   controller: _contentController,
                   focusNode: _contentFocus,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    height: 1.5,
-                    fontSize: 18,
-                  ),
+                  style: Theme.of(context).textTheme.bodyLarge,
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,

@@ -7,9 +7,9 @@ class ProfileScreen extends StatefulWidget {
   final DatabaseService dbService;
 
   const ProfileScreen({
-    super.key, 
-    required this.user, 
-    required this.dbService
+    super.key,
+    required this.user,
+    required this.dbService,
   });
 
   @override
@@ -35,121 +35,115 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Error: $e")),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // AHORA SÍ: Usamos Padding igual que en tu AuthScreen
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 24, 
-        right: 24, 
-        top: 24
+        left: 24,
+        right: 24,
+        top: 24,
       ),
       child: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min, 
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 1. Handle bar indicator (Igual al AuthScreen)
+            // Handle bar
             Center(
               child: Container(
                 width: 40,
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.grey[600], // Color gris para modo oscuro
+                  color: colors.onSurfaceVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            
-            // 2. Icono (Estilo oscuro)
-            const Icon(Icons.account_circle_outlined, size: 60, color: Color(0xFF2C2C2C)),
+
+            Icon(
+              Icons.account_circle_outlined,
+              size: 60,
+              color: colors.primary,
+            ),
             const SizedBox(height: 16),
-            
-            // 3. Título
-            const Text(
-              "Mi Perfil",
+
+            Text(
+              "Profile",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 24, 
-                fontWeight: FontWeight.bold,
-                color: Colors.white // Texto blanco
-              ),
+              style: theme.textTheme.headlineMedium,
             ),
             const SizedBox(height: 24),
 
-            // 4. Input EMAIL (Solo lectura, Estilo Dark)
+            // Email (readonly)
             TextField(
-              enabled: false, 
+              readOnly: true,
               controller: TextEditingController(text: widget.user.email),
-              style: const TextStyle(color: Colors.white70),
-              decoration: const InputDecoration(
-                labelText: "Email",
-                labelStyle: TextStyle(color: Colors.grey),
-                prefixIcon: Icon(Icons.email_outlined, color: Colors.grey),
-                disabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white24),
-                ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+              decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.white10,
+                labelText: "Email",
+                prefixIcon: const Icon(Icons.email_outlined),
+                fillColor: colors.surfaceContainerHighest,
               ),
             ),
             const SizedBox(height: 16),
 
-            // 5. Input ID
+            // User ID
             TextField(
-              enabled: false, 
+              readOnly: true,
               controller: TextEditingController(text: widget.user.id),
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
-              decoration: const InputDecoration(
-                labelText: "ID de Usuario",
-                labelStyle: TextStyle(color: Colors.grey),
-                prefixIcon: Icon(Icons.fingerprint, color: Colors.grey),
-                disabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white10),
-                ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+              decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                filled: true,
-                fillColor: Colors.transparent,
+                labelText: "User ID",
+                prefixIcon: const Icon(Icons.fingerprint),
+                fillColor: colors.surfaceContainerHighest,
               ),
             ),
             const SizedBox(height: 24),
 
-            // 6. Botón Salir
+            // Sign out (destructive)
             ElevatedButton(
               onPressed: _isLoading ? null : _signOut,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.withOpacity(0.15),
-                foregroundColor: Colors.redAccent,
+                foregroundColor: colors.error,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                side: BorderSide(color: Colors.red.withOpacity(0.5))
+
+                side: BorderSide(color: colors.error),
               ),
               child: _isLoading
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent))
-                  : const Text("Cerrar Sesión"),
+                  ? SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.onSurface,
+                      ),
+                    )
+                  : const Text("Log out"),
             ),
             const SizedBox(height: 16),
 
-            // 7. Botón Cancelar
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "Cancelar",
-                style: TextStyle(color: Colors.grey),
-              ),
+              child: const Text("Cancel"),
             ),
             const SizedBox(height: 24),
           ],

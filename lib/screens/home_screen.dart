@@ -94,10 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
             // TITLE
             title: Text(
               "Notes",
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
-              ),
+              style: theme.textTheme.headlineLarge,
             ),
             centerTitle: false,
 
@@ -108,9 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _handleAuthOrProfile,
                 icon: Icon(
                   Supabase.instance.client.auth.currentUser != null 
-                      ? Icons.account_circle 
-                      : Icons.account_circle_outlined
-                  , size: 28
+                      ? Icons.account_circle
+                      : Icons.account_circle_outlined,
+                  size: 28,
                 ),
                 tooltip: 'Account',
               ),
@@ -178,11 +175,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.note_alt_outlined, size: 64, color: theme.colorScheme.primary),
-                        const SizedBox(height: 16),
+                        Icon(Icons.note_alt_outlined, size: 64),
+                        const SizedBox(height: 12),
                         Text(
                           _searchQuery.isEmpty ? "No notes yet" : "No results found",
-                          style: TextStyle(color: theme.colorScheme.primary),
+                          style: theme.textTheme.headlineSmall,
                         ),
                       ],
                     ),
@@ -249,7 +246,7 @@ class _NoteCard extends StatelessWidget {
               Text(
                 note.title,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             
@@ -261,7 +258,6 @@ class _NoteCard extends StatelessWidget {
                 note.content,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.5,
                 ),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,

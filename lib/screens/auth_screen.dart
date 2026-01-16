@@ -14,7 +14,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _passwordController = TextEditingController();
   
   bool _isLoading = false;
-  bool _isLogin = true; 
+  bool _isLogin = true;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -50,7 +51,7 @@ class _AuthScreenState extends State<AuthScreen> {
       // Error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+          SnackBar(content: Text(errorMessage)),
         );
       }
     } else {
@@ -89,19 +90,19 @@ class _AuthScreenState extends State<AuthScreen> {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             
-            const Icon(Icons.lock_person_outlined, size: 60, color: Colors.black87),
+            const Icon(Icons.lock_person_outlined, size: 60),
             const SizedBox(height: 16),
             
             Text(
               _isLogin ? "Welcome Back" : "Create Account",
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 24),
 
@@ -118,11 +119,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
             TextField(
               controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
                 labelText: "Password",
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.lock_outline),
+                suffixIcon: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                )
               ),
             ),
             const SizedBox(height: 24),
