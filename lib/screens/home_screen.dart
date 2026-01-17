@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/screens/editor_screen.dart';
@@ -7,6 +8,7 @@ import 'package:isan/screens/profile_screen.dart';
 import 'package:isan/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/services/update_checker.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,11 +21,18 @@ class _HomeScreenState extends State<HomeScreen> {
   final DatabaseService dbService = DatabaseService();
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _appVersion = '';
 
   @override
   void initState() {
     super.initState();
     
+    PackageInfo.fromPlatform().then((info) {
+    if (mounted) {
+      setState(() => _appVersion = info.version);
+    }
+  });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         UpdateChecker.checkForUpdates(context);
@@ -92,12 +101,17 @@ class _HomeScreenState extends State<HomeScreen> {
             toolbarHeight: 50.0,
 
             // TITLE
-            title: Text(
-              "Notes",
-              style: theme.textTheme.headlineLarge,
+            title: Row(
+              children: [
+                Text("Notes", style: theme.textTheme.headlineLarge),
+                const SizedBox(width: 8),
+                Text(_appVersion, style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                )),
+              ],
             ),
+            
             centerTitle: false,
-
             // THEME SWITCHER
             actions: [
               // NEW: Auth Button
