@@ -26,7 +26,7 @@ A clean, Offline-First notes application built with Flutter, Drift (SQLite), and
   - [x] Implement Drift (SQLite) using `sqlite3.wasm` and `drift_worker.js` for non-blocking Web Workers.
   - [x] Re-implement Database Service using SQL tables.
   - [x] Verify native Streams (Watchers) on Web, Android, and Windows.
-- [ ] **Phase 8:** Deployment & Release (APK / EXE / Web).
+- [x] **Phase 8:** Deployment & Release (APK / EXE / Web).
 - [ ] **Phase 9:** iOS Deployment (IPA / TestFlight).
 
 ## 🛠️ Tech Stack

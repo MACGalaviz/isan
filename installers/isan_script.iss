@@ -1,7 +1,7 @@
 ; Script para el instalador de Isan
 [Setup]
 AppName=Isan
-AppVersion=1.0.0
+AppVersion=1.0.1
 AppPublisher=Isan Team
 ; AQUI ABAJO PEGARAS TU UUID
 AppId=0647cc04-78cb-4a8c-ad4b-1f88e872e251
