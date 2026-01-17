@@ -131,6 +131,8 @@ flutter build windows --release
 ## 🚀 5. Release Workflow Checklist
 When you are ready to ship a new version (e.g., v1.0.1):
 
+**NOTE: Remember to update both numbers in the version (e.g., `version: 1.0.0+0`) to the new version (e.g., `version: 1.0.1+1`) before building**
+
 1.  **📝 Bump Version:**
     * Update `pubspec.yaml` (e.g., `version: 1.0.1+2`).
 
