@@ -47,6 +47,7 @@ class _EditorScreenState extends State<EditorScreen> {
         userId: userId,
         title: "",
         content: "",
+        createdAt: DateTime.now(), // Drift maneja DateTime nativo
         updatedAt: DateTime.now(), // Drift maneja DateTime nativo
         isSynced: false,
         isLocked: false,

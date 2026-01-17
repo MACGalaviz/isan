@@ -36,6 +36,7 @@ class DatabaseService {
       userId: Value(note.userId),
       title: Value(note.title),
       content: Value(note.content),
+      createdAt: Value(note.createdAt),
       updatedAt: Value(note.updatedAt),
       isSynced: Value(note.isSynced),
       isLocked: Value(note.isLocked),
@@ -120,24 +121,38 @@ class DatabaseService {
     // Drift Transaction: Ejecuta todo en bloque para mayor velocidad
     await db.transaction(() async {
       for (var map in cloudNotesData) {
-        final String uuid = map['id'];
+        final rawId = map['id'];
+        if (rawId == null || rawId is! String) continue;
 
-        // Check if exists locally by UUID
-        final existingNote = await (db.select(db.notes)..where((t) => t.uuid.equals(uuid))).getSingleOrNull();
-        
-        // Prepare data
+        final uuid = rawId;
+
+        final createdAtRaw = map['created_at'];
+        final updatedAtRaw = map['updated_at'];
+
+        final createdAt = createdAtRaw != null
+            ? DateTime.parse(createdAtRaw).toLocal()
+            : DateTime.now();
+
+        final updatedAt = updatedAtRaw != null
+            ? DateTime.parse(updatedAtRaw).toLocal()
+            : createdAt;
+
+        final existingNote = await (db.select(db.notes)
+              ..where((t) => t.uuid.equals(uuid)))
+            .getSingleOrNull();
+
         final companion = NotesCompanion(
           id: existingNote != null ? Value(existingNote.id) : const Value.absent(),
           uuid: Value(uuid),
           userId: Value(map['user_id'] ?? 'local_user'),
           title: Value(map['title'] ?? ''),
           content: Value(map['content'] ?? ''),
-          updatedAt: Value(DateTime.parse(map['updated_at']).toLocal()),
-          isSynced: const Value(true), // Viene de la nube, ya está synced
+          createdAt: Value(createdAt),
+          updatedAt: Value(updatedAt),
+          isSynced: const Value(true),
           isLocked: Value(map['is_locked'] ?? false),
         );
 
-        // Insert or Update
         await db.into(db.notes).insertOnConflictUpdate(companion);
       }
     });
@@ -154,6 +169,7 @@ class DatabaseService {
       userId: row.userId,
       title: row.title,
       content: row.content,
+      createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       isSynced: row.isSynced,
       isLocked: row.isLocked,

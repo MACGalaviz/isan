@@ -60,6 +60,17 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -108,6 +119,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
     userId,
     title,
     content,
+    createdAt,
     updatedAt,
     isSynced,
     isLocked,
@@ -159,6 +171,14 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -208,6 +228,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
         DriftSqlType.string,
         data['${effectivePrefix}content'],
       )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -235,6 +259,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
   final String userId;
   final String title;
   final String content;
+  final DateTime createdAt;
   final DateTime updatedAt;
   final bool isSynced;
   final bool isLocked;
@@ -244,6 +269,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     required this.userId,
     required this.title,
     required this.content,
+    required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
     required this.isLocked,
@@ -256,6 +282,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     map['user_id'] = Variable<String>(userId);
     map['title'] = Variable<String>(title);
     map['content'] = Variable<String>(content);
+    map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['is_synced'] = Variable<bool>(isSynced);
     map['is_locked'] = Variable<bool>(isLocked);
@@ -269,6 +296,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       userId: Value(userId),
       title: Value(title),
       content: Value(content),
+      createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isSynced: Value(isSynced),
       isLocked: Value(isLocked),
@@ -286,6 +314,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       userId: serializer.fromJson<String>(json['userId']),
       title: serializer.fromJson<String>(json['title']),
       content: serializer.fromJson<String>(json['content']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       isLocked: serializer.fromJson<bool>(json['isLocked']),
@@ -300,6 +329,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       'userId': serializer.toJson<String>(userId),
       'title': serializer.toJson<String>(title),
       'content': serializer.toJson<String>(content),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isSynced': serializer.toJson<bool>(isSynced),
       'isLocked': serializer.toJson<bool>(isLocked),
@@ -312,6 +342,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     String? userId,
     String? title,
     String? content,
+    DateTime? createdAt,
     DateTime? updatedAt,
     bool? isSynced,
     bool? isLocked,
@@ -321,6 +352,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     userId: userId ?? this.userId,
     title: title ?? this.title,
     content: content ?? this.content,
+    createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     isSynced: isSynced ?? this.isSynced,
     isLocked: isLocked ?? this.isLocked,
@@ -332,6 +364,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       userId: data.userId.present ? data.userId.value : this.userId,
       title: data.title.present ? data.title.value : this.title,
       content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       isLocked: data.isLocked.present ? data.isLocked.value : this.isLocked,
@@ -346,6 +379,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
           ..write('userId: $userId, ')
           ..write('title: $title, ')
           ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isSynced: $isSynced, ')
           ..write('isLocked: $isLocked')
@@ -360,6 +394,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     userId,
     title,
     content,
+    createdAt,
     updatedAt,
     isSynced,
     isLocked,
@@ -373,6 +408,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
           other.userId == this.userId &&
           other.title == this.title &&
           other.content == this.content &&
+          other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.isSynced == this.isSynced &&
           other.isLocked == this.isLocked);
@@ -384,6 +420,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
   final Value<String> userId;
   final Value<String> title;
   final Value<String> content;
+  final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isSynced;
   final Value<bool> isLocked;
@@ -393,6 +430,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     this.userId = const Value.absent(),
     this.title = const Value.absent(),
     this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.isLocked = const Value.absent(),
@@ -403,6 +441,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     required String userId,
     required String title,
     required String content,
+    required DateTime createdAt,
     required DateTime updatedAt,
     this.isSynced = const Value.absent(),
     this.isLocked = const Value.absent(),
@@ -410,6 +449,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
        userId = Value(userId),
        title = Value(title),
        content = Value(content),
+       createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<NoteDb> custom({
     Expression<int>? id,
@@ -417,6 +457,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     Expression<String>? userId,
     Expression<String>? title,
     Expression<String>? content,
+    Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isSynced,
     Expression<bool>? isLocked,
@@ -427,6 +468,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
       if (userId != null) 'user_id': userId,
       if (title != null) 'title': title,
       if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isSynced != null) 'is_synced': isSynced,
       if (isLocked != null) 'is_locked': isLocked,
@@ -439,6 +481,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     Value<String>? userId,
     Value<String>? title,
     Value<String>? content,
+    Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<bool>? isSynced,
     Value<bool>? isLocked,
@@ -449,6 +492,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
       userId: userId ?? this.userId,
       title: title ?? this.title,
       content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isSynced: isSynced ?? this.isSynced,
       isLocked: isLocked ?? this.isLocked,
@@ -473,6 +517,9 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -493,6 +540,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
           ..write('userId: $userId, ')
           ..write('title: $title, ')
           ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isSynced: $isSynced, ')
           ..write('isLocked: $isLocked')
@@ -519,6 +567,7 @@ typedef $$NotesTableCreateCompanionBuilder =
       required String userId,
       required String title,
       required String content,
+      required DateTime createdAt,
       required DateTime updatedAt,
       Value<bool> isSynced,
       Value<bool> isLocked,
@@ -530,6 +579,7 @@ typedef $$NotesTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> title,
       Value<String> content,
+      Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<bool> isSynced,
       Value<bool> isLocked,
@@ -565,6 +615,11 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
 
   ColumnFilters<String> get content => $composableBuilder(
     column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -618,6 +673,11 @@ class $$NotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -657,6 +717,9 @@ class $$NotesTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -701,6 +764,7 @@ class $$NotesTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String> content = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isLocked = const Value.absent(),
@@ -710,6 +774,7 @@ class $$NotesTableTableManager
                 userId: userId,
                 title: title,
                 content: content,
+                createdAt: createdAt,
                 updatedAt: updatedAt,
                 isSynced: isSynced,
                 isLocked: isLocked,
@@ -721,6 +786,7 @@ class $$NotesTableTableManager
                 required String userId,
                 required String title,
                 required String content,
+                required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isLocked = const Value.absent(),
@@ -730,6 +796,7 @@ class $$NotesTableTableManager
                 userId: userId,
                 title: title,
                 content: content,
+                createdAt: createdAt,
                 updatedAt: updatedAt,
                 isSynced: isSynced,
                 isLocked: isLocked,

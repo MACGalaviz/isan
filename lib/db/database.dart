@@ -22,6 +22,7 @@ class Notes extends Table {
   TextColumn get content => text()();
   
   // Fechas y Estados
+  DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   BoolColumn get isLocked => boolean().withDefault(const Constant(false))();
