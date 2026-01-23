@@ -26,6 +26,7 @@ class Notes extends Table {
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
   BoolColumn get isLocked => boolean().withDefault(const Constant(false))();
+  TextColumn get passwordHash => text().nullable()();
 }
 
 // 2. Definición de la Base de Datos
@@ -35,7 +36,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.addColumn(notes, notes.passwordHash);
+      }
+    },
+  );
 
   // Configuración de conexión (Automática para Web y Nativo)
   static QueryExecutor _openConnection() {
