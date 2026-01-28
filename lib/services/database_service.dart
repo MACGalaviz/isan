@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/db/database.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/supabase_service.dart';
@@ -15,24 +16,33 @@ class DatabaseService {
 
   Future<void> initialize() async {
     db = AppDatabase();
+
+    // ✅ Check if encryption key is ready
+    // In user mode without unlock, key won't be available yet
+    if (!SessionKeyService.instance.hasKey) {
+      print('⚠️ No encryption key available - skipping cloud sync');
+      print('⚠️ User must unlock to access notes');
+      return; // Don't crash, just skip sync
+    }
+
     await _syncFromCloud();
   }
 
   Future<int> saveNote(Note note) async {
     int savedId;
 
+    // Encrypt content before saving
     final encrypted = await EncryptionService.instance.encrypt(
       plainText: note.content,
       key: SessionKeyService.instance.key,
     );
-    print('ENCRYPTED CONTENT TO SAVE: $encrypted');
 
     final companion = NotesCompanion(
       id: note.id == -1 ? const Value.absent() : Value(note.id),
       uuid: Value(note.uuid),
       userId: Value(note.userId),
       title: Value(note.title),
-      content: Value(encrypted),
+      content: Value(encrypted), // ✅ Save encrypted
       createdAt: Value(note.createdAt),
       updatedAt: Value(note.updatedAt),
       isSynced: Value(note.isSynced),
@@ -47,13 +57,22 @@ class DatabaseService {
       savedId = note.id;
     }
 
+    // Sync to cloud (also encrypted)
     try {
-      final noteToSync = note.copyWith(
-        id: savedId,
-        content: encrypted,
-      );
-      await _supabaseService.syncNote(noteToSync);
-    } catch (_) {}
+      // Only sync if user is authenticated
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final noteToSync = note.copyWith(
+          id: savedId,
+          content: encrypted,
+        );
+        await _supabaseService.syncNote(noteToSync);
+      } else {
+        print('⚠️ Skipping cloud sync - no authenticated user');
+      }
+    } catch (e) {
+      print('⚠️ Sync failed (offline?): $e');
+    }
 
     return savedId;
   }
@@ -88,7 +107,9 @@ class DatabaseService {
     if (noteDb?.uuid != null) {
       try {
         await _supabaseService.deleteNote(noteDb!.uuid);
-      } catch (_) {}
+      } catch (e) {
+        print('⚠️ Failed to delete from cloud: $e');
+      }
     }
   }
 
@@ -122,7 +143,7 @@ class DatabaseService {
           uuid: Value(uuid),
           userId: Value(map['user_id'] ?? 'local_user'),
           title: Value(map['title'] ?? ''),
-          content: Value(map['content'] ?? ''),
+          content: Value(map['content'] ?? ''), // Already encrypted from cloud
           createdAt: Value(createdAt),
           updatedAt: Value(updatedAt),
           isSynced: const Value(true),
@@ -137,28 +158,29 @@ class DatabaseService {
 
   Future<Note> _mapToModel(NoteDb row) async {
     try {
+      // Decrypt content when reading from DB
       final content = await EncryptionService.instance.decrypt(
         cipherText: row.content,
         key: SessionKeyService.instance.key,
       );
-      print('decrypted content: $content');
+      
       return Note(
         id: row.id,
         uuid: row.uuid,
         userId: row.userId,
         title: row.title,
-        content: content,
+        content: content, // ✅ Decrypted content
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
         isLocked: row.isLocked,
       );
     } catch (e, stackTrace) {
-      print('❌ Error real: $e');
+      print('❌ Decryption error: $e');
       print('Stack: $stackTrace');
-      print('❌❌❌: $row.title');
-      print('❌❌❌: $row.content');
-      // fallback TEMPORAL
+      print('Note title: ${row.title}');
+      
+      // Fallback for corrupted notes
       return Note(
         id: row.id,
         uuid: row.uuid,
@@ -172,5 +194,4 @@ class DatabaseService {
       );
     }
   }
-
 }
