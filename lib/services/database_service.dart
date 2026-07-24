@@ -117,6 +117,16 @@ class DatabaseService {
     await db.delete(db.notes).go();
   }
 
+  /// Public cloud sync trigger.
+  /// Called after login once the UMK is available in session.
+  Future<void> syncFromCloud() async {
+    if (!SessionKeyService.instance.hasKey) {
+      print('⚠️ No encryption key available - skipping cloud sync');
+      return;
+    }
+    await _syncFromCloud();
+  }
+
   Future<void> _syncFromCloud() async {
     final cloudNotesData = await _supabaseService.fetchNotes();
     if (cloudNotesData.isEmpty) return;

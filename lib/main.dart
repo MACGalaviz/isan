@@ -15,7 +15,7 @@ void main() async {
   // Initialize Supabase
   await Supabase.initialize(
     url: 'https://zowjsdugeslczfywrdgm.supabase.co',      
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpvd2pzZHVnZXNsY3pmeXdyZGdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NTYwMjksImV4cCI6MjA4MzEzMjAyOX0.zhXNThJ46p1s_8c9KO5ipL8pPJFW1PaAN9obqHcmElw',     
+    anonKey: 'sb_publishable_a9Emq5_G5ZZfDUBEVSAj-A_XM2fxEa-',
   );
 
   // 🔐 CRITICAL: Initialize encryption system

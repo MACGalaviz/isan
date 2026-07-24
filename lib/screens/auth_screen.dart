@@ -52,8 +52,34 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (_isLogin) {
       // LOGIN FLOW
-      errorMessage = await _authService.signIn(email: email, password: password);
-      // Key already loaded from storage on app start
+
+      // Guard: local-mode notes are encrypted with the device LMK.
+      // Logging into an existing account switches the session key to the
+      // account UMK, which would leave those notes permanently unreadable.
+      if (KeyManagerService.instance.currentMode == KeyMode.local) {
+        final localNotes = await DatabaseService().db.select(DatabaseService().db.notes).get();
+        if (localNotes.isNotEmpty) {
+          errorMessage =
+              "You have unsynced local notes. Sign Up to migrate them, or clear them before logging in.";
+        }
+      }
+
+      if (errorMessage == null) {
+        errorMessage = await _authService.signIn(email: email, password: password);
+      }
+
+      if (errorMessage == null) {
+        // Download and decrypt the account UMK (multi-device unlock)
+        final unlocked =
+            await KeyManagerService.instance.loginWithPassword(password: password);
+        if (!unlocked) {
+          errorMessage = "Could not unlock your notes. Check your password.";
+          await _authService.signOut();
+        } else {
+          // UMK is now in session → pull encrypted notes from cloud
+          await DatabaseService().syncFromCloud();
+        }
+      }
     } else {
       // SIGN UP FLOW
       final isLocal = KeyManagerService.instance.currentMode == KeyMode.local;
