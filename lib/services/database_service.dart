@@ -31,17 +31,22 @@ class DatabaseService {
   Future<int> saveNote(Note note) async {
     int savedId;
 
-    // Encrypt content before saving
+    // Encrypt title and content before saving
+    final key = SessionKeyService.instance.key;
+    final encryptedTitle = await EncryptionService.instance.encrypt(
+      plainText: note.title,
+      key: key,
+    );
     final encrypted = await EncryptionService.instance.encrypt(
       plainText: note.content,
-      key: SessionKeyService.instance.key,
+      key: key,
     );
 
     final companion = NotesCompanion(
       id: note.id == -1 ? const Value.absent() : Value(note.id),
       uuid: Value(note.uuid),
       userId: Value(note.userId),
-      title: Value(note.title),
+      title: Value(encryptedTitle), // ✅ Save encrypted
       content: Value(encrypted), // ✅ Save encrypted
       createdAt: Value(note.createdAt),
       updatedAt: Value(note.updatedAt),
@@ -64,6 +69,7 @@ class DatabaseService {
       if (user != null) {
         final noteToSync = note.copyWith(
           id: savedId,
+          title: encryptedTitle,
           content: encrypted,
         );
         await _supabaseService.syncNote(noteToSync);
@@ -78,23 +84,24 @@ class DatabaseService {
   }
 
   Stream<List<Note>> listenToNotes({String query = ''}) {
-    final selectQuery = query.isEmpty
-        ? (db.select(db.notes)
-          ..orderBy([
-            (t) => OrderingTerm(
-                expression: t.updatedAt, mode: OrderingMode.desc)
-          ]))
-        : (db.select(db.notes)
-          ..where(
-              (t) => t.title.contains(query) | t.content.contains(query))
-          ..orderBy([
-            (t) => OrderingTerm(
-                expression: t.updatedAt, mode: OrderingMode.desc)
-          ]));
+    // Search runs in memory over decrypted notes:
+    // title/content are stored encrypted, so SQL LIKE can't match plaintext.
+    final selectQuery = db.select(db.notes)
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc)
+      ]);
 
-    return selectQuery.watch().asyncMap(
-          (rows) => Future.wait(rows.map(_mapToModel)),
-        );
+    return selectQuery.watch().asyncMap((rows) async {
+      final notes = await Future.wait(rows.map(_mapToModel));
+      if (query.isEmpty) return notes;
+
+      final q = query.toLowerCase();
+      return notes
+          .where((n) =>
+              n.title.toLowerCase().contains(q) ||
+              n.content.toLowerCase().contains(q))
+          .toList();
+    });
   }
 
   Future<void> deleteNote(int id) async {
@@ -168,17 +175,22 @@ class DatabaseService {
 
   Future<Note> _mapToModel(NoteDb row) async {
     try {
-      // Decrypt content when reading from DB
+      // Decrypt title and content when reading from DB
+      final key = SessionKeyService.instance.key;
+      final title = await EncryptionService.instance.decrypt(
+        cipherText: row.title,
+        key: key,
+      );
       final content = await EncryptionService.instance.decrypt(
         cipherText: row.content,
-        key: SessionKeyService.instance.key,
+        key: key,
       );
-      
+
       return Note(
         id: row.id,
         uuid: row.uuid,
         userId: row.userId,
-        title: row.title,
+        title: title, // ✅ Decrypted title
         content: content, // ✅ Decrypted content
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
@@ -188,14 +200,13 @@ class DatabaseService {
     } catch (e, stackTrace) {
       print('❌ Decryption error: $e');
       print('Stack: $stackTrace');
-      print('Note title: ${row.title}');
-      
+
       // Fallback for corrupted notes
       return Note(
         id: row.id,
         uuid: row.uuid,
         userId: row.userId,
-        title: row.title,
+        title: '🔒 Locked / corrupted',
         content: '🔒 Locked / corrupted note',
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

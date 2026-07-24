@@ -164,21 +164,30 @@ class _AuthScreenState extends State<AuthScreen> {
     await db.transaction(() async {
       for (final note in allNotes) {
         try {
-          // Decrypt with old key (LMK)
+          // Decrypt title + content with old key (LMK)
+          final plainTitle = await EncryptionService.instance.decrypt(
+            cipherText: note.title,
+            key: oldKey,
+          );
           final plaintext = await EncryptionService.instance.decrypt(
             cipherText: note.content,
             key: oldKey,
           );
-          
+
           // Encrypt with new key (UMK)
+          final newTitle = await EncryptionService.instance.encrypt(
+            plainText: plainTitle,
+            key: newKey,
+          );
           final newCiphertext = await EncryptionService.instance.encrypt(
             plainText: plaintext,
             key: newKey,
           );
-          
-          // Update in DB with new userId and encrypted content
+
+          // Update in DB with new userId and encrypted title/content
           await (db.update(db.notes)..where((t) => t.id.equals(note.id)))
               .write(NotesCompanion(
+                title: Value(newTitle),
                 content: Value(newCiphertext),
                 userId: Value(currentUserId), // Update userId
                 isSynced: const Value(false), // Mark for re-sync
