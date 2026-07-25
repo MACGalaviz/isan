@@ -1,152 +1,226 @@
 # ISAN – Application Work Plan
 
-This document describes the **technical roadmap**, structured into **modules / sprints**, with clear goals, scope, and checklists.
-It is intended to live inside the repository and evolve as the project grows.
+This document describes the **technical roadmap** of the ISAN application.
+It is structured into **sprints and steps**, with explicit completion states.
+The goal is to ensure the app **always remains functional** while evolving.
 
 ---
 
-## Overall Goals
+## Core Principles
 
-- Reliable offline-first notes application
-- Robust sync with Supabase
-- Clean separation of concerns (UI / Domain / Data)
-- Predictable UX and state handling
-- Maintainable and extensible architecture
+- Offline-first architecture
+- Local database is the source of truth
+- Sync must never block UX
+- App must compile and run at every step
+- Security features must be incremental and non-breaking
 
 ---
 
 ## Sprint 0 – UI & Design System ✅ (COMPLETED)
 
 ### Scope
-- Centralized Theme (colors, text hierarchy, components)
+- Centralized theme
 - Remove hardcoded UI values
-- Consistent modal & snackbar behavior
-- Auth / Profile / Editor UI cleanup
+- Consistent UX behavior
 
-### Completed
-- [x] App-wide `AppTheme`
-- [x] Text hierarchy (headline, title, body, label)
-- [x] Material 3 setup
-- [x] Auth modal UI
-- [x] Profile modal UI
-- [x] Editor screen UI
-- [x] FloatingActionButton + SnackBar interaction refined
-
-**Status:** ✅ Done
+### Status
+```
+[x] App-wide AppTheme
+[x] Typography hierarchy
+[x] Material 3 setup
+[x] Auth modal UI
+[x] Profile modal UI
+[x] Editor screen UI
+[x] SnackBar + FAB behavior
+```
 
 ---
 
-## Sprint 1 – Sync Engine Hardening (Core Data Layer)
+## Sprint 1 – Data Layer & Sync Foundations
 
 ### Goal
-Make note syncing **reliable, conflict-safe, and predictable**.
-
-### Scope
-- Offline-first behavior
-- Local DB as source of truth
-- Deterministic sync rules
-
-### Tasks
-- [ ] Define sync states (local-only, synced, dirty, conflict)
-- [ ] Add `updated_at` + `last_synced_at` logic
-- [ ] Resolve conflicts (last-write-wins or merge)
-- [ ] Handle deletes safely
-- [ ] Retry strategy for failed syncs
-
-**Estimated time:** 2–3 days
+Prepare a **stable offline-first data layer** with future-proof sync
+and security hooks, without breaking the existing app.
 
 ---
 
-## Sprint 2 – Authentication & Session Management
+### Step 1 – Local Database (Drift) Integration ✅
+
+**Objective:**  
+Replace legacy local storage with Drift-based SQLite.
+
+```
+[x] Drift database initialized
+[x] Notes table defined
+[x] UUID-based identity
+[x] Local CRUD fully functional
+[x] App runs and persists notes locally
+```
+
+---
+
+### Step 2 – Supabase Sync (Baseline) ✅
+
+**Objective:**  
+Enable basic cloud sync without conflicts or encryption.
+
+```
+[x] Supabase notes table connected
+[x] Upload local notes to cloud
+[x] Download notes from cloud
+[x] updated_at handled
+[x] App runs with sync enabled
+```
+
+---
+
+### Step 3 – Schema Alignment & Stability ✅
+
+**Objective:**  
+Ensure local and remote schemas are compatible.
+
+```
+[x] created_at added to Supabase
+[x] updated_at consistency fixed
+[x] Null-safety issues resolved
+[x] Sync no longer crashes on missing fields
+```
+
+---
+
+### Step 4 – Security Architecture (FOUNDATION ONLY) ⚠️
+
+**Objective:**  
+Lay down security building blocks **without activating encryption yet**.
+
+```
+[x] encryption_service.dart created
+[x] key_derivation_service.dart created
+[x] key_storage_service.dart created (placeholder)
+[x] password_hash column added to DB
+[ ] Encryption wired into persistence layer
+[ ] Session key lifecycle defined
+```
+
+⚠️ **Important:**  
+At this stage, encryption exists as code **but is NOT active**.
+Notes are still stored in plaintext.
+
+---
+
+### Step 5 – Crypto Utilities & Compilation Stability ✅
+
+**Objective:**  
+Ensure cryptographic helpers compile and are correct.
+
+```
+[x] AES-GCM encryption utility compiles
+[x] PBKDF2 key derivation compiles
+[x] Secure random salt generation
+[x] No runtime crypto errors
+```
+
+⚠️ Still not used in storage flow.
+
+---
+
+### Step 6 – Encryption Wiring (NOT STARTED)
+
+**Objective:**  
+Ensure note content is **always encrypted at rest**.
+
+```
+[ ] Encrypt content before saving to Drift
+[ ] Store only encrypted payload in local DB
+[ ] Sync encrypted payload to Supabase
+[ ] Decrypt content only at read-time
+```
+
+This step is required before claiming E2EE.
+
+---
+
+### Step 7 – Locked Notes Logic (NOT STARTED)
+
+**Objective:**  
+Support password-protected notes.
+
+```
+[ ] Define locked note UX
+[ ] Use isLocked flag meaningfully
+[ ] Validate password before decrypting
+[ ] Hide content preview for locked notes
+```
+
+---
+
+## Sprint 2 – Authentication & Session Keys
 
 ### Goal
-Make auth flows **safe, predictable, and UI-aware**.
+Introduce **user-based security context** without breaking offline usage.
 
-### Scope
-- Supabase auth lifecycle
-- Session persistence
-- Clear UX for auth state
-
-### Tasks
-- [ ] Centralize auth state listener
-- [ ] Handle token refresh edge cases
-- [ ] Protect sync operations behind auth
-- [ ] Graceful logout cleanup
-
-**Estimated time:** 1–2 days
+```
+[ ] Auth-driven session key derivation
+[ ] Offline unlock using cached session key
+[ ] Multi-device key consistency
+[ ] Logout wipes in-memory keys
+```
 
 ---
 
-## Sprint 3 – Domain Layer Cleanup
+## Sprint 3 – True End-to-End Encryption (E2EE)
 
 ### Goal
-Separate **business logic** from UI & services.
+Guarantee **zero-knowledge storage**.
 
-### Scope
-- Introduce domain models
-- Reduce widget-side logic
-
-### Tasks
-- [ ] Create domain entities (`NoteEntity`)
-- [ ] Extract use cases (CreateNote, UpdateNote, DeleteNote)
-- [ ] Remove DB logic from widgets
-
-**Estimated time:** 1–2 days
+```
+[ ] Content encrypted locally
+[ ] Titles decision finalized (encrypted or not)
+[ ] Supabase stores unreadable data
+[ ] Recovery phrase generation
+[ ] Clear irreversibility guarantees
+```
 
 ---
 
-## Sprint 4 – State Management Strategy
+## Sprint 4 – State Management
 
-### Goal
-Have **predictable, testable state**.
-
-### Scope
-- Reduce implicit state
-- Avoid side effects in widgets
-
-### Tasks
-- [ ] Choose state solution (ValueNotifier / Riverpod / Bloc)
-- [ ] Centralize note list state
-- [ ] Centralize loading & error states
-
-**Estimated time:** 1 day
+```
+[ ] Central note state
+[ ] Loading/error states
+[ ] Predictable UI updates
+```
 
 ---
 
-## Sprint 5 – Error Handling & UX Feedback
+## Sprint 5 – UX, Errors & Feedback
 
-### Goal
-Never fail silently.
-
-### Scope
-- Unified error handling
-- User-visible feedback
-
-### Tasks
-- [ ] Error mapping (network, auth, sync)
-- [ ] Global snackbar/toast strategy
-- [ ] Empty / error states
-
-**Estimated time:** 1 day
+```
+[ ] Global error handling
+[ ] Sync failure UX
+[ ] Empty states
+```
 
 ---
 
-## Sprint 6 – Maintenance & Quality
+## Sprint 6 – Quality & Maintenance
 
-### Goal
-Keep the project **healthy long-term**.
-
-### Scope
-- Tests
-- Documentation
-- Cleanup
-
-### Tasks
-- [ ] Add unit tests for sync logic
-- [ ] Add integration tests for auth
-- [ ] Refactor technical debt
-- [ ] Update documentation
-
-**Estimated time:** ongoing
+```
+[ ] Unit tests
+[ ] Integration tests
+[ ] Security audit notes
+[ ] Documentation updates
+```
 
 ---
+
+## Current Truth (Important)
+
+```
+✔ App is stable and functional
+✔ Sync works
+❌ Notes are NOT encrypted at rest yet
+❌ Supabase can currently read content
+```
+
+Encryption becomes real starting at **Sprint 1 – Step 6**.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/services/database_service.dart';
+import 'package:isan/services/security/key_manager_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final User user;
@@ -23,13 +24,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await Supabase.instance.client.auth.signOut();
+      // 1. Clear encryption keys
+      await KeyManagerService.instance.logout();
+      
+      // 2. Clear local database
       await widget.dbService.cleanDb();
+      
+      // 3. Sign out from Supabase
+      await Supabase.instance.client.auth.signOut();
 
       if (mounted) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Sesión cerrada correctamente")),
+          const SnackBar(content: Text("Logged out successfully")),
         );
       }
     } catch (e) {
@@ -125,7 +132,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: ElevatedButton.styleFrom(
                 foregroundColor: colors.error,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-
                 side: BorderSide(color: colors.error),
               ),
               child: _isLoading
