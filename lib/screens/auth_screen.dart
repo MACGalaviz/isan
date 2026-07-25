@@ -155,8 +155,6 @@ class _AuthScreenState extends State<AuthScreen> {
               }
             } catch (e, stackTrace) {
               // The message alone never says which call threw.
-              // ignore: avoid_print
-              print("❌ Migration failed: $e\n$stackTrace"); // TEMP: release debug
               debugPrint("❌ Migration failed: $e\n$stackTrace");
               errorMessage = "Migration failed: $e";
               await _authService.signOut();
@@ -438,9 +436,15 @@ class _AuthScreenState extends State<AuthScreen> {
     final db = DatabaseService().db;
     
     final allNotes = await db.select(db.notes).get();
-    
+
     debugPrint('🔄 Re-encrypting ${allNotes.length} notes...');
-    
+
+    // Signing up with nothing stored locally is the normal case, and an empty
+    // transaction throws on drift's sharedIndexedDb backend — the one the web
+    // build falls back to when SharedArrayBuffer isn't available, as on GitHub
+    // Pages. Nothing to re-encrypt, nothing to open.
+    if (allNotes.isEmpty) return;
+
     final currentUserId = Supabase.instance.client.auth.currentUser?.id ?? 'local_user';
     
     // Process in a transaction to avoid stream updates during migration
