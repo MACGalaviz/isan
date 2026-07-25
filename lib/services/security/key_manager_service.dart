@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:bip39/bip39.dart' as bip39;
+import 'package:flutter/foundation.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/services/security/encryption_service.dart';
@@ -28,9 +28,7 @@ class KeyManagerService {
   String? _cachedRecoveryPhrase; // Store temporarily during signup
   String? get recoveryPhrase => _cachedRecoveryPhrase;
 
-  /// ========================================================================
-  /// INITIALIZATION - Call on app startup
-  /// ========================================================================
+  // INITIALIZATION - Call on app startup
 
   Future<void> initialize() async {
     final hasStoredKey = await _storage.hasMasterKey();
@@ -51,9 +49,7 @@ class KeyManagerService {
     }
   }
 
-  /// ========================================================================
-  /// LOCAL MODE
-  /// ========================================================================
+  // LOCAL MODE
 
   Future<void> _initializeLocalMode() async {
     final lmk = await AesGcm.with256bits().newSecretKey();
@@ -66,7 +62,7 @@ class KeyManagerService {
     _session.setKey(lmk);
     _currentMode = KeyMode.local;
 
-    print('✅ Local mode initialized');
+    debugPrint('✅ Local mode initialized');
   }
 
   Future<void> _loadLocalMasterKey() async {
@@ -81,12 +77,10 @@ class KeyManagerService {
     _session.setKey(lmk);
     _currentMode = KeyMode.local;
 
-    print('✅ Local master key loaded');
+    debugPrint('✅ Local master key loaded');
   }
 
-  /// ========================================================================
-  /// USER MODE
-  /// ========================================================================
+  // USER MODE
 
   Future<void> _loadUserMasterKey() async {
     final umkBase64 = await _storage.getMasterKey();
@@ -100,26 +94,21 @@ class KeyManagerService {
     _session.setKey(umk);
     _currentMode = KeyMode.user;
 
-    print('✅ User master key loaded');
+    debugPrint('✅ User master key loaded');
   }
 
-  /// ========================================================================
-  /// SIGNUP - Create account with encrypted UMK
-  /// ========================================================================
+  // SIGNUP - Create account with encrypted UMK
 
   Future<void> createUserAccount({
     required String password,
   }) async {
-    // 1. Generate UMK
     final umk = await AesGcm.with256bits().newSecretKey();
     final umkBytes = await umk.extractBytes();
     final umkBase64 = base64Encode(umkBytes);
 
-    // 2. Generate recovery phrase (12 words)
     _cachedRecoveryPhrase = _generateRecoveryPhrase();
-    print('🔑 Recovery phrase generated (SHOW TO USER)');
+    debugPrint('🔑 Recovery phrase generated (SHOW TO USER)');
 
-    // 3. Derive keys from password and recovery phrase
     final saltPassword = _kdf.generateSalt();
     final saltRecovery = _kdf.generateSalt();
 
@@ -133,7 +122,6 @@ class KeyManagerService {
       salt: saltRecovery,
     );
 
-    // 4. Encrypt UMK with both keys
     final encryptedWithPassword = await _encryption.encrypt(
       plainText: umkBase64,
       key: pdk,
@@ -144,7 +132,6 @@ class KeyManagerService {
       key: rdk,
     );
 
-    // 5. Upload to Supabase
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) throw StateError('No authenticated user');
 
@@ -157,20 +144,17 @@ class KeyManagerService {
       'updated_at': DateTime.now().toIso8601String(),
     });
 
-    // 6. Save UMK locally (plaintext cache)
+    // Cached in the clear so the app opens offline
     await _storage.saveMasterKey(umkBase64);
     await _storage.saveMode('user');
 
-    // 7. Load into session
     _session.setKey(umk);
     _currentMode = KeyMode.user;
 
-    print('✅ User account created with cloud-synced encrypted UMK');
+    debugPrint('✅ User account created with cloud-synced encrypted UMK');
   }
 
-  /// ========================================================================
-  /// LOGIN - Download and decrypt UMK
-  /// ========================================================================
+  // LOGIN - Download and decrypt UMK
 
   Future<bool> loginWithPassword({
     required String password,
@@ -179,7 +163,6 @@ class KeyManagerService {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw StateError('No authenticated user');
 
-      // 1. Download encrypted UMK from Supabase
       final response = await Supabase.instance.client
           .from('user_keys')
           .select()
@@ -190,13 +173,11 @@ class KeyManagerService {
       final saltBase64 = response['salt_password'] as String;
       final salt = base64Decode(saltBase64);
 
-      // 2. Derive key from password
       final pdk = await _kdf.deriveKey(
         secret: password,
         salt: salt,
       );
 
-      // 3. Decrypt UMK
       final umkBase64 = await _encryption.decrypt(
         cipherText: encryptedUmk,
         key: pdk,
@@ -205,25 +186,21 @@ class KeyManagerService {
       final umkBytes = base64Decode(umkBase64);
       final umk = SecretKey(umkBytes);
 
-      // 4. Save locally (cache)
       await _storage.saveMasterKey(umkBase64);
       await _storage.saveMode('user');
 
-      // 5. Load into session
       _session.setKey(umk);
       _currentMode = KeyMode.user;
 
-      print('✅ Logged in with password');
+      debugPrint('✅ Logged in with password');
       return true;
     } catch (e) {
-      print('❌ Login failed: $e');
+      debugPrint('❌ Login failed: $e');
       return false;
     }
   }
 
-  /// ========================================================================
-  /// RECOVERY - Recover with phrase
-  /// ========================================================================
+  // RECOVERY - Recover with phrase
 
   Future<bool> recoverWithPhrase({
     required String recoveryPhrase,
@@ -232,7 +209,6 @@ class KeyManagerService {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw StateError('No authenticated user');
 
-      // 1. Download encrypted UMK from Supabase
       final response = await Supabase.instance.client
           .from('user_keys')
           .select()
@@ -243,13 +219,11 @@ class KeyManagerService {
       final saltBase64 = response['salt_recovery'] as String;
       final salt = base64Decode(saltBase64);
 
-      // 2. Derive key from recovery phrase
       final rdk = await _kdf.deriveKey(
         secret: recoveryPhrase,
         salt: salt,
       );
 
-      // 3. Decrypt UMK
       final umkBase64 = await _encryption.decrypt(
         cipherText: encryptedUmk,
         key: rdk,
@@ -258,25 +232,21 @@ class KeyManagerService {
       final umkBytes = base64Decode(umkBase64);
       final umk = SecretKey(umkBytes);
 
-      // 4. Save locally (cache)
       await _storage.saveMasterKey(umkBase64);
       await _storage.saveMode('user');
 
-      // 5. Load into session
       _session.setKey(umk);
       _currentMode = KeyMode.user;
 
-      print('✅ Recovered with phrase');
+      debugPrint('✅ Recovered with phrase');
       return true;
     } catch (e) {
-      print('❌ Recovery failed: $e');
+      debugPrint('❌ Recovery failed: $e');
       return false;
     }
   }
 
-  /// ========================================================================
-  /// RE-WRAP PASSWORD SLOT
-  /// ========================================================================
+  // RE-WRAP PASSWORD SLOT
 
   /// Re-encrypt the current session UMK under a (new) password.
   /// Called after recovering with the phrase so future password logins work
@@ -301,12 +271,10 @@ class KeyManagerService {
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('user_id', user.id);
 
-    print('✅ Password slot re-wrapped');
+    debugPrint('✅ Password slot re-wrapped');
   }
 
-  /// ========================================================================
-  /// MIGRATION
-  /// ========================================================================
+  // MIGRATION
 
   Future<void> migrateLocalToUser({
     required String password,
@@ -316,23 +284,21 @@ class KeyManagerService {
       throw StateError('Can only migrate from local mode');
     }
 
-    print('🔄 Starting migration: Local → User');
+    debugPrint('🔄 Starting migration: Local → User');
 
     final oldLmk = _session.key;
     final umk = await AesGcm.with256bits().newSecretKey();
 
-    print('🔄 Re-encrypting notes...');
+    debugPrint('🔄 Re-encrypting notes...');
     await reencryptNotes(oldLmk, umk);
-    print('✅ Notes re-encrypted in DB');
+    debugPrint('✅ Notes re-encrypted in DB');
 
     _session.setKey(umk);
-    print('✅ Session key updated to UMK');
+    debugPrint('✅ Session key updated to UMK');
 
-    // Generate recovery phrase
     _cachedRecoveryPhrase = _generateRecoveryPhrase();
-    print('🔑 Recovery phrase generated (SHOW TO USER)');
+    debugPrint('🔑 Recovery phrase generated (SHOW TO USER)');
 
-    // Encrypt and upload UMK
     final umkBytes = await umk.extractBytes();
     final umkBase64 = base64Encode(umkBytes);
 
@@ -360,12 +326,10 @@ class KeyManagerService {
     await _storage.saveMode('user');
     _currentMode = KeyMode.user;
 
-    print('✅ Migration complete: Local → User');
+    debugPrint('✅ Migration complete: Local → User');
   }
 
-  /// ========================================================================
-  /// UTILITIES
-  /// ========================================================================
+  // UTILITIES
 
   /// Generate a BIP39 12-word recovery phrase (128-bit entropy)
   String _generateRecoveryPhrase() {
@@ -379,16 +343,20 @@ class KeyManagerService {
   /// Lock the app
   void lock() {
     _session.clear();
-    print('🔒 App locked');
+    debugPrint('🔒 App locked');
   }
 
   /// Logout
   Future<void> logout() async {
     await _storage.clearAll();
     _session.clear();
-    _currentMode = null;
     _cachedRecoveryPhrase = null;
-    print('👋 Logged out');
+
+    // Back to fresh-install state: without a new LMK the app has no key at all
+    // and every save throws until the next restart.
+    await _initializeLocalMode();
+
+    debugPrint('👋 Logged out');
   }
 
   bool get isUnlocked => _session.hasKey;
