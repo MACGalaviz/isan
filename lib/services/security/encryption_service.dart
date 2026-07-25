@@ -11,14 +11,13 @@ class EncryptionService {
     required String plainText,
     required SecretKey key,
   }) async {
-    // 1. Encriptamos (el algoritmo genera su propio nonce y MAC internamente)
+    // AesGcm generates its own nonce and MAC
     final secretBox = await _algorithm.encrypt(
       utf8.encode(plainText),
       secretKey: key,
     );
 
-    // 2. IMPORTANTE: Guardamos todo junto (Nonce + MAC + CipherText)
-    // El método concatenation() ya lo hace por ti de forma estándar
+    // Stored as nonce + MAC + ciphertext in one string
     return base64Encode(secretBox.concatenation());
   }
 
@@ -28,8 +27,7 @@ class EncryptionService {
   }) async {
     final combined = base64Decode(cipherText);
 
-    // 3. Reconstruimos el SecretBox usando la concatenación
-    // AesGcm usa 12 bytes para nonce y 16 para MAC por defecto
+    // AesGcm defaults: 12-byte nonce, 16-byte MAC
     final secretBox = SecretBox.fromConcatenation(
       combined,
       nonceLength: 12,

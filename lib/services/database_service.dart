@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/db/database.dart';
 import 'package:isan/models/note.dart';
@@ -17,11 +18,9 @@ class DatabaseService {
   Future<void> initialize() async {
     db = AppDatabase();
 
-    // ✅ Check if encryption key is ready
-    // In user mode without unlock, key won't be available yet
     if (!SessionKeyService.instance.hasKey) {
-      print('⚠️ No encryption key available - skipping cloud sync');
-      print('⚠️ User must unlock to access notes');
+      debugPrint('⚠️ No encryption key available - skipping cloud sync');
+      debugPrint('⚠️ User must unlock to access notes');
       return; // Don't crash, just skip sync
     }
 
@@ -31,7 +30,6 @@ class DatabaseService {
   Future<int> saveNote(Note note) async {
     int savedId;
 
-    // Encrypt title and content before saving
     final key = SessionKeyService.instance.key;
     final encryptedTitle = await EncryptionService.instance.encrypt(
       plainText: note.title,
@@ -46,8 +44,8 @@ class DatabaseService {
       id: note.id == -1 ? const Value.absent() : Value(note.id),
       uuid: Value(note.uuid),
       userId: Value(note.userId),
-      title: Value(encryptedTitle), // ✅ Save encrypted
-      content: Value(encrypted), // ✅ Save encrypted
+      title: Value(encryptedTitle),
+      content: Value(encrypted),
       createdAt: Value(note.createdAt),
       updatedAt: Value(note.updatedAt),
       isSynced: Value(note.isSynced),
@@ -62,9 +60,7 @@ class DatabaseService {
       savedId = note.id;
     }
 
-    // Sync to cloud (also encrypted)
     try {
-      // Only sync if user is authenticated
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
         final noteToSync = note.copyWith(
@@ -74,10 +70,10 @@ class DatabaseService {
         );
         await _supabaseService.syncNote(noteToSync);
       } else {
-        print('⚠️ Skipping cloud sync - no authenticated user');
+        debugPrint('⚠️ Skipping cloud sync - no authenticated user');
       }
     } catch (e) {
-      print('⚠️ Sync failed (offline?): $e');
+      debugPrint('⚠️ Sync failed (offline?): $e');
     }
 
     return savedId;
@@ -134,7 +130,7 @@ class DatabaseService {
         );
       }
     } catch (e) {
-      print('⚠️ Lock sync failed (offline?): $e');
+      debugPrint('⚠️ Lock sync failed (offline?): $e');
     }
   }
 
@@ -149,7 +145,7 @@ class DatabaseService {
       try {
         await _supabaseService.deleteNote(noteDb!.uuid);
       } catch (e) {
-        print('⚠️ Failed to delete from cloud: $e');
+        debugPrint('⚠️ Failed to delete from cloud: $e');
       }
     }
   }
@@ -162,7 +158,7 @@ class DatabaseService {
   /// Called after login once the UMK is available in session.
   Future<void> syncFromCloud() async {
     if (!SessionKeyService.instance.hasKey) {
-      print('⚠️ No encryption key available - skipping cloud sync');
+      debugPrint('⚠️ No encryption key available - skipping cloud sync');
       return;
     }
     await _syncFromCloud();
@@ -209,7 +205,6 @@ class DatabaseService {
 
   Future<Note> _mapToModel(NoteDb row) async {
     try {
-      // Decrypt title and content when reading from DB
       final key = SessionKeyService.instance.key;
       final title = await EncryptionService.instance.decrypt(
         cipherText: row.title,
@@ -224,8 +219,8 @@ class DatabaseService {
         id: row.id,
         uuid: row.uuid,
         userId: row.userId,
-        title: title, // ✅ Decrypted title
-        content: content, // ✅ Decrypted content
+        title: title,
+        content: content,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
@@ -233,8 +228,8 @@ class DatabaseService {
         passwordHash: row.passwordHash,
       );
     } catch (e, stackTrace) {
-      print('❌ Decryption error: $e');
-      print('Stack: $stackTrace');
+      debugPrint('❌ Decryption error: $e');
+      debugPrint('Stack: $stackTrace');
 
       // Fallback for corrupted notes
       return Note(

@@ -52,7 +52,6 @@ class _AuthScreenState extends State<AuthScreen> {
     String? errorMessage;
 
     if (_isLogin) {
-      // LOGIN FLOW
 
       // Guard: local-mode notes are encrypted with the device LMK.
       // Logging into an existing account switches the session key to the
@@ -65,9 +64,7 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
 
-      if (errorMessage == null) {
-        errorMessage = await _authService.signIn(email: email, password: password);
-      }
+      errorMessage ??= await _authService.signIn(email: email, password: password);
 
       if (errorMessage == null) {
         // Download and decrypt the account UMK (multi-device unlock)
@@ -87,7 +84,6 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
     } else {
-      // SIGN UP FLOW
       final isLocal = KeyManagerService.instance.currentMode == KeyMode.local;
       
       errorMessage = await _authService.signUp(email: email, password: password);
@@ -96,12 +92,11 @@ class _AuthScreenState extends State<AuthScreen> {
         // Wait for Supabase session to be fully established
         await Future.delayed(const Duration(milliseconds: 500));
         
-        // Verify user is authenticated
         final user = Supabase.instance.client.auth.currentUser;
         if (user == null) {
           errorMessage = "Authentication failed - no user session";
         } else {
-          print('✅ User authenticated: ${user.id}');
+          debugPrint('✅ User authenticated: ${user.id}');
           
           // Auth succeeded, now setup encryption
           if (isLocal) {
@@ -113,7 +108,7 @@ class _AuthScreenState extends State<AuthScreen> {
               );
               
               // After migration, sync all notes to cloud
-              print('☁️ Uploading migrated notes to cloud...');
+              debugPrint('☁️ Uploading migrated notes to cloud...');
               await _uploadAllNotesToCloud();
               
             } catch (e) {
@@ -136,7 +131,6 @@ class _AuthScreenState extends State<AuthScreen> {
     if (mounted) setState(() => _isLoading = false);
 
     if (errorMessage != null) {
-      // Error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMessage)),
@@ -152,7 +146,6 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       }
 
-      // Success - close modal and show message
       if (mounted) {
         Navigator.of(context).pop();
 
@@ -367,12 +360,10 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _reencryptAllNotes(SecretKey oldKey, SecretKey newKey) async {
     final db = DatabaseService().db;
     
-    // Get snapshot of all notes (not a stream)
     final allNotes = await db.select(db.notes).get();
     
-    print('🔄 Re-encrypting ${allNotes.length} notes...');
+    debugPrint('🔄 Re-encrypting ${allNotes.length} notes...');
     
-    // Get current user ID from Supabase
     final currentUserId = Supabase.instance.client.auth.currentUser?.id ?? 'local_user';
     
     // Process in a transaction to avoid stream updates during migration
@@ -408,15 +399,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 isSynced: const Value(false), // Mark for re-sync
               ));
               
-          print('✅ Re-encrypted: ${note.title}');
+          debugPrint('✅ Re-encrypted: ${note.title}');
         } catch (e) {
-          print('❌ Failed to re-encrypt note ${note.id}: $e');
+          debugPrint('❌ Failed to re-encrypt note ${note.id}: $e');
           rethrow; // Fail the entire transaction if one note fails
         }
       }
     });
     
-    print('✅ Re-encrypted ${allNotes.length} notes successfully');
+    debugPrint('✅ Re-encrypted ${allNotes.length} notes successfully');
   }
 
   /// Upload all notes to Supabase after migration
@@ -424,26 +415,23 @@ class _AuthScreenState extends State<AuthScreen> {
     final db = DatabaseService().db;
     final supabaseService = SupabaseService();
     
-    // Verify user is authenticated
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) {
-      print('❌ Cannot upload - no authenticated user');
+      debugPrint('❌ Cannot upload - no authenticated user');
       throw Exception('User not authenticated');
     }
     
-    print('✅ Uploading as user: ${currentUser.id}');
+    debugPrint('✅ Uploading as user: ${currentUser.id}');
     
-    // Get all notes
     final allNotes = await db.select(db.notes).get();
     
-    print('☁️ Uploading ${allNotes.length} notes to Supabase...');
+    debugPrint('☁️ Uploading ${allNotes.length} notes to Supabase...');
     
     int uploaded = 0;
     int failed = 0;
     
     for (final noteDb in allNotes) {
       try {
-        // Convert to Note model
         final note = Note(
           id: noteDb.id,
           uuid: noteDb.uuid,
@@ -456,10 +444,8 @@ class _AuthScreenState extends State<AuthScreen> {
           isLocked: noteDb.isLocked,
         );
         
-        // Upload to Supabase
         await supabaseService.syncNote(note);
         
-        // Mark as synced in local DB
         await (db.update(db.notes)..where((t) => t.id.equals(noteDb.id)))
             .write(NotesCompanion(
               isSynced: const Value(true),
@@ -467,14 +453,14 @@ class _AuthScreenState extends State<AuthScreen> {
             ));
         
         uploaded++;
-        print('✅ Uploaded: ${noteDb.title}');
+        debugPrint('✅ Uploaded: ${noteDb.title}');
       } catch (e) {
         failed++;
-        print('❌ Failed to upload ${noteDb.title}: $e');
+        debugPrint('❌ Failed to upload ${noteDb.title}: $e');
       }
     }
     
-    print('✅ Upload complete: $uploaded successful, $failed failed');
+    debugPrint('✅ Upload complete: $uploaded successful, $failed failed');
   }
 
   @override
@@ -493,7 +479,6 @@ class _AuthScreenState extends State<AuthScreen> {
           mainAxisSize: MainAxisSize.min, // Wrap content height
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Handle bar indicator
             Center(
               child: Container(
                 width: 40,

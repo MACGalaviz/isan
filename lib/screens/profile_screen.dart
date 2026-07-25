@@ -102,13 +102,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Clear encryption keys
       await KeyManagerService.instance.logout();
       
-      // 2. Clear local database
       await widget.dbService.cleanDb();
       
-      // 3. Sign out from Supabase
       await Supabase.instance.client.auth.signOut();
 
       if (mounted) {
@@ -145,7 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Handle bar
             Center(
               child: Container(
                 width: 40,
@@ -172,7 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Email (readonly)
             TextField(
               readOnly: true,
               controller: TextEditingController(text: widget.user.email),
@@ -188,7 +183,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
 
-            // User ID
             TextField(
               readOnly: true,
               controller: TextEditingController(text: widget.user.id),
@@ -214,7 +208,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Sign out (destructive)
             ElevatedButton(
               onPressed: _isLoading ? null : _signOut,
               style: ElevatedButton.styleFrom(

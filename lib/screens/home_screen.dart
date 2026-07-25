@@ -46,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Helper method to toggle theme
   void _toggleTheme() {
     if (themeNotifier.value == ThemeMode.light) {
       themeNotifier.value = ThemeMode.dark;
@@ -56,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleAuthOrProfile() {
-    // 1. Verificamos si hay usuario logueado en Supabase
     final user = Supabase.instance.client.auth.currentUser;
 
     showModalBottomSheet(
@@ -66,7 +64,6 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        // 2. Lógica condicional:
         if (user != null) {
           return ProfileScreen(
             user: user,
@@ -91,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // 1. APP BAR
           SliverAppBar(
             floating: false,
             pinned: true,
@@ -100,7 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
             surfaceTintColor: Colors.transparent,
             toolbarHeight: 50.0,
 
-            // TITLE
             title: Row(
               children: [
                 Text("Notes", style: theme.textTheme.headlineLarge),
@@ -112,9 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             
             centerTitle: false,
-            // THEME SWITCHER
             actions: [
-              // NEW: Auth Button
               IconButton(
                 onPressed: _handleAuthOrProfile,
                 icon: Icon(
@@ -141,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
 
-            // SEARCH BAR
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(60),
               child: Container(
@@ -170,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // 2. STREAM BUILDER
           StreamBuilder<List<Note>>(
             stream: dbService.listenToNotes(query: _searchQuery),
             builder: (context, snapshot) {

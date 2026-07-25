@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
-import 'package:isan/services/auth_service.dart';
 import 'package:isan/services/security/note_lock_service.dart';
 import 'package:isan/services/security/key_manager_service.dart';
-import 'package:uuid/uuid.dart'; // Asegúrate de tener uuid en pubspec.yaml
-import 'package:supabase_flutter/supabase_flutter.dart'; // Para obtener el usuario actual
+import 'package:uuid/uuid.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -21,7 +20,6 @@ class _EditorScreenState extends State<EditorScreen> {
   final _contentController = TextEditingController();
   final _unlockController = TextEditingController();
   final _dbService = DatabaseService();
-  final _authService = AuthService();
   
   final FocusNode _titleFocus = FocusNode();
   final FocusNode _contentFocus = FocusNode();
@@ -44,18 +42,16 @@ class _EditorScreenState extends State<EditorScreen> {
       _unlocked = !_note.isProtected;
     } else {
       // CREATE MODE
-      // Obtenemos el ID del usuario de Supabase (o 'local_user' si no hay sesión)
       final userId = Supabase.instance.client.auth.currentUser?.id ?? "local_user";
 
-      // Inicializamos con TODOS los campos obligatorios
       _note = Note(
-        id: -1, // -1 indica que aún no existe en SQLite
-        uuid: const Uuid().v4(), // Generamos UUID único ahora mismo
+        id: -1, // Not in SQLite yet
+        uuid: const Uuid().v4(),
         userId: userId,
         title: "",
         content: "",
-        createdAt: DateTime.now(), // Drift maneja DateTime nativo
-        updatedAt: DateTime.now(), // Drift maneja DateTime nativo
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
         isSynced: false,
         isLocked: false,
       );
@@ -82,37 +78,32 @@ class _EditorScreenState extends State<EditorScreen> {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
-    // 1. Check if there are no changes
     if (_note.title == title && _note.content == content) {
       _isSaving = false;
-      return false; 
-    }
-    
-    // 2. Empty note -> Delete
-    if (title.isEmpty && content.isEmpty) {
-      if (_note.id != -1) { 
-        await _dbService.deleteNote(_note.id);
-        _isSaving = false;
-        return true; 
-      }
-      _isSaving = false;
-      return false; // Was empty and never saved, do nothing
+      return false;
     }
 
-    // 3. Save changes
-    // IMPORTANTE: Note es inmutable, usamos copyWith para crear la versión actualizada
+    // An emptied note is a deletion
+    if (title.isEmpty && content.isEmpty) {
+      if (_note.id != -1) {
+        await _dbService.deleteNote(_note.id);
+        _isSaving = false;
+        return true;
+      }
+      _isSaving = false;
+      return false;
+    }
+
     final updatedNote = _note.copyWith(
       title: title,
       content: content,
-      updatedAt: DateTime.now().toUtc(), // Guardamos en UTC para evitar líos de zona horaria
-      isSynced: false, // Marcamos como no sincronizado para que el Sync Engine lo suba
+      updatedAt: DateTime.now().toUtc(), // UTC to keep timezones out of sync
+      isSynced: false,
     );
 
-    // Guardamos en DB (Drift devolverá el ID numérico insertado/actualizado)
     final savedId = await _dbService.saveNote(updatedNote);
-    
-    // 4. Update local state
-    // Actualizamos nuestra variable local con el ID definitivo (útil si era una nota nueva)
+
+    // Carries the real id back for notes that were just created
     _note = updatedNote.copyWith(id: savedId);
     
     _isSaving = false;
@@ -392,7 +383,6 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Scaffold(
         appBar: AppBar(
           actions: [
-            // Lock toggle
             IconButton(
               onPressed: _note.isProtected ? _removeLock : _addLock,
               icon: Icon(
@@ -401,7 +391,6 @@ class _EditorScreenState extends State<EditorScreen> {
               tooltip: _note.isProtected ? 'Remove lock' : 'Lock note',
             ),
 
-            // Save Button (Manual)
             if (_unlocked)
             IconButton(
               onPressed: () async {
@@ -421,7 +410,6 @@ class _EditorScreenState extends State<EditorScreen> {
               icon: const Icon(Icons.check),
             ),
             
-            // Delete Button (Only if it's an existing, unlocked note)
             if (_unlocked && _note.id != -1)
               IconButton(
                 onPressed: () {
