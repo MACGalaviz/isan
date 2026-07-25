@@ -128,7 +128,38 @@ flutter build windows --release
 
 ---
 
-## 🚀 5. Release Workflow Checklist
+## 🍎 5. macOS Deployment (DMG)
+Requires a Mac. Flutter cannot cross-compile a macOS app from Windows.
+
+### Step A: Build
+```bash
+flutter build macos --release
+```
+**Output:** `build/macos/Build/Products/Release/isan.app`
+
+### Step B: Sign (free, ad-hoc)
+A paid Apple Developer account is only needed for **notarization** (the "app is from an identified developer" seal). Without it, an ad-hoc signature is enough to run the app locally and to distribute it with a first-launch warning:
+
+```bash
+codesign --force --deep --sign - build/macos/Build/Products/Release/isan.app
+```
+
+### Step C: Package
+```bash
+hdiutil create -volname Isan -srcfolder build/macos/Build/Products/Release/isan.app \
+  -ov -format UDZO Isan-macos.dmg
+```
+
+### Step D: First launch on another Mac
+Gatekeeper blocks unsigned apps on double-click. Users must **right-click → Open** once, then confirm. If macOS reports the app as "damaged", clear the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/isan.app
+```
+
+---
+
+## 🚀 6. Release Workflow Checklist
 When you are ready to ship a new version (e.g., v1.0.1):
 
 **NOTE: Remember to update both numbers in the version (e.g., `version: 1.0.0+0`) to the new version (e.g., `version: 1.0.1+1`) before building**
@@ -136,14 +167,19 @@ When you are ready to ship a new version (e.g., v1.0.1):
 1.  **📝 Bump Version:**
     * Update `pubspec.yaml` (e.g., `version: 1.0.1+2`).
 
+    * **If the release changes the Supabase schema**, run the matching `.sql`
+      from the repo root *before* shipping the client — an unknown column makes
+      every upload fail and leaves notes pending.
+
 2.  **🍳 Build:**
     * Run `flutter build apk --release`.
     * (Optional) Run `flutter build windows --release`.
+    * (Optional, on a Mac) Run `flutter build macos --release` and package the DMG.
 
 3.  **☁️ GitHub Release (Get the Link):**
     * Go to GitHub > Releases > Draft New Release.
     * Tag: `v1.0.1`.
-    * **Upload** `app-release.apk` (and `Isan_Setup.exe`).
+    * **Upload** `app-release.apk` (and `Isan_Setup.exe`, `Isan-macos.dmg`).
     * Publish.
     * **COPY the download link** of the assets you just uploaded.
 
