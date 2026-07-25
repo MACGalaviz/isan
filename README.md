@@ -9,6 +9,7 @@
 An offline-first notes app for Android, Windows, macOS and the web.
 End-to-end encrypted and zero-knowledge: the server stores ciphertext and never holds a key that opens it.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.10-0175C2?logo=dart&logoColor=white)](https://dart.dev)
 [![Drift](https://img.shields.io/badge/Drift-SQLite%20%2F%20WASM-1E88E5)](https://drift.simonbinder.eu)
@@ -16,7 +17,7 @@ End-to-end encrypted and zero-knowledge: the server stores ciphertext and never 
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows%20%7C%20macOS%20%7C%20Web-blue)](#download)
 [![Encryption](https://img.shields.io/badge/encryption-AES--256--GCM-4c1)](#security-model)
 
-[**🌐 Live demo**](https://macgalaviz.github.io/isan/) · [**⬇️ Download**](#download) · [**📦 Deployment guide**](DEPLOYMENT.md)
+[**🌐 Live demo**](https://macgalaviz.github.io/isan/) · [**⬇️ Download**](#download) · [**📦 Deployment guide**](docs/DEPLOYMENT.md) · [**🗺️ Work plan**](docs/WORKPLAN.md)
 
 </div>
 
@@ -102,7 +103,7 @@ flutter run
 That runs against this project's Supabase instance. To point it at your own:
 
 1. Create a Supabase project.
-2. Run these SQL files from the repo root, in order, in the Supabase SQL editor:
+2. Run the SQL files in [`db/`](db), in order, in the Supabase SQL editor:
    - `supabase_setup.sql` — the `notes` table and its RLS policies
    - `supabase_encryption.sql` — the `user_keys` table and the encryption columns
    - `supabase_note_types.sql` — the `note_type` column
@@ -119,7 +120,7 @@ flutter build macos --release      # macOS    (needs a Mac)
 flutter build web --release        # Web
 ```
 
-Signing, installers and the auto-update flow are documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+Signing, installers and the auto-update flow are documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 After changing `lib/db/database.dart`, regenerate the Drift code:
 
@@ -139,16 +140,24 @@ flutter test
 
 ```
 lib/
-  db/          Drift schema and generated code
-  models/      Note model and note types
-  screens/     Home, editor, auth, profile, password reset
+  db/            Drift schema and generated code
+  models/        Note model and note types
+  screens/       Home, editor, auth, profile, password reset
   services/
-    security/  Key manager, derivation, encryption, session key, note lock
-    ...        Database, Supabase, update checker
-test/          Crypto and note-lock tests
-*.sql          Supabase schema, idempotent, safe to re-run
+    security/    Key manager, derivation, encryption, session key, note lock
+    ...          Database, Supabase, update checker
+test/            Crypto and note-lock tests
+db/              Supabase schema, idempotent, safe to re-run
+docs/            Deployment guide and work plan
+installers/      Inno Setup script for the Windows installer
 ```
 
 ## Status
 
-Feature-complete on the platforms above. iOS is not planned: distributing it needs a paid Apple Developer account, and this app does not justify one.
+Feature-complete on the platforms above. What is left is internal — central state management and tests for the sync layer — and it is tracked in the [work plan](docs/WORKPLAN.md).
+
+iOS is not planned: distributing it needs a paid Apple Developer account, and this app does not justify one.
+
+## License
+
+[MIT](LICENSE) © Miguel Cabañas

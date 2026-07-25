@@ -14,16 +14,23 @@ Since we are distributing the app directly (GitHub Releases), we need a custom m
 3.  **Client Check:** The app fetches the JSON on startup. If `remote_version > local_version`, it prompts the user to update.
 
 ### Example `version.json`
-Place this file in your `web/` folder (or edit it directly in the `gh-pages` branch):
+Lives in `web/version.json` and reaches users through the `gh-pages` deploy:
 ```json
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "build_number": 2,
   "changelog": "- Fixed sync bugs\n- Added dark mode",
-  "download_url_android": "[https://github.com/USER/isan/releases/download/v1.0.1/app-release.apk](https://github.com/USER/isan/releases/download/v1.0.1/app-release.apk)",
-  "download_url_windows": "[https://github.com/USER/isan/releases/download/v1.0.1/Isan_Setup.exe](https://github.com/USER/isan/releases/download/v1.0.1/Isan_Setup.exe)"
+  "download_url_android": "https://github.com/MACGalaviz/isan/releases/download/v1.1.0/app-release.apk",
+  "download_url_windows": "https://github.com/MACGalaviz/isan/releases/download/v1.1.0/Isan_Setup.exe",
+  "download_url_macos": "https://github.com/MACGalaviz/isan/releases/download/v1.1.0/Isan-macos.dmg"
 }
 ```
+
+⚠️ **Order matters.** Publish the GitHub Release *before* deploying `gh-pages`.
+The other way round announces a version whose download links 404.
+
+The web build has no update check of its own — the browser reloads it — so
+`version.json` only ever drives the Android, Windows and macOS builds.
 
 ---
 
@@ -167,8 +174,8 @@ When you are ready to ship a new version (e.g., v1.0.1):
 1.  **📝 Bump Version:**
     * Update `pubspec.yaml` (e.g., `version: 1.0.1+2`).
 
-    * **If the release changes the Supabase schema**, run the matching `.sql`
-      from the repo root *before* shipping the client — an unknown column makes
+    * **If the release changes the Supabase schema**, run the matching file
+      from [`db/`](../db) *before* shipping the client — an unknown column makes
       every upload fail and leaves notes pending.
 
 2.  **🍳 Build:**
@@ -196,3 +203,15 @@ When you are ready to ship a new version (e.g., v1.0.1):
       git push origin gh-pages
       ```
     * *Users will now see the update alert.*
+
+---
+
+## 7. Where things live
+
+| Path | What |
+|---|---|
+| `db/*.sql` | Supabase schema, idempotent, run in filename order for a fresh project |
+| `docs/` | This guide and the work plan |
+| `installers/isan_script.iss` | Inno Setup script for the Windows installer |
+| `web/version.json` | Update manifest — published through `gh-pages` |
+| `android/key.properties` | Signing secrets, git-ignored, never commit |
