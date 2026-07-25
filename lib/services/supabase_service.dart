@@ -50,6 +50,9 @@ class SupabaseService {
       debugPrint("☁️ Cloud: Note lock synced ($isLocked)");
     } catch (e) {
       debugPrint("❌ Cloud Error (Lock sync): $e");
+      // Same contract as syncNote: the caller needs to know it never landed,
+      // otherwise it marks the row as synced on a failed upload.
+      rethrow;
     }
   }
 

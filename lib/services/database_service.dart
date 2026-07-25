@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +17,8 @@ class DatabaseService {
   late AppDatabase db;
   final SupabaseService _supabaseService = SupabaseService();
 
+  bool _isFlushing = false;
+
   Future<void> initialize() async {
     db = AppDatabase();
 
@@ -24,6 +28,9 @@ class DatabaseService {
       return; // Don't crash, just skip sync
     }
 
+    // Push before pulling: the pull overwrites local rows, so an edit made
+    // offline would be lost if the cloud copy came down first.
+    await flushPendingSyncs();
     await _syncFromCloud();
   }
 
@@ -69,6 +76,12 @@ class DatabaseService {
           content: encrypted,
         );
         await _supabaseService.syncNote(noteToSync);
+        await _markSynced(savedId);
+
+        // This upload proved there is a connection, so drain whatever earlier
+        // saves left behind. Not awaited: closing the editor waits on this
+        // call, and a backlog would freeze it.
+        unawaited(flushPendingSyncs());
       } else {
         debugPrint('⚠️ Skipping cloud sync - no authenticated user');
       }
@@ -77,6 +90,60 @@ class DatabaseService {
     }
 
     return savedId;
+  }
+
+  /// Narrow write: only the sync flag, so the ciphertext keeps its nonce and
+  /// [Note.updatedAt] stays put.
+  Future<void> _markSynced(int id) async {
+    await (db.update(db.notes)..where((t) => t.id.equals(id)))
+        .write(const NotesCompanion(isSynced: Value(true)));
+  }
+
+  /// Uploads the notes an offline save left behind.
+  ///
+  /// Costs nothing but a local query when there is nothing pending, and stops
+  /// at the first failure so a dead connection means one request, not one per
+  /// note. Never throws — callers fire it and forget.
+  Future<void> flushPendingSyncs() async {
+    if (_isFlushing) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final pending =
+        await (db.select(db.notes)..where((t) => t.isSynced.equals(false)))
+            .get();
+    if (pending.isEmpty) return;
+
+    _isFlushing = true;
+    debugPrint('☁️ Flushing ${pending.length} pending note(s)');
+
+    try {
+      for (final row in pending) {
+        // Straight from the row: title and content are already ciphertext.
+        // Going through _mapToModel would upload plaintext — or overwrite a
+        // note that merely failed to decrypt with the placeholder text.
+        await _supabaseService.syncNote(
+          Note(
+            id: row.id,
+            uuid: row.uuid,
+            userId: row.userId,
+            title: row.title,
+            content: row.content,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+            isSynced: true,
+            isLocked: row.isLocked,
+            passwordHash: row.passwordHash,
+          ),
+        );
+        await _markSynced(row.id);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Flush stopped, will retry on the next trigger: $e');
+    } finally {
+      _isFlushing = false;
+    }
   }
 
   Stream<List<Note>> listenToNotes({String query = ''}) {
@@ -128,6 +195,9 @@ class DatabaseService {
           isLocked: row.isLocked,
           passwordHash: row.passwordHash,
         );
+        // Otherwise a landed lock change leaves the row pending, and the next
+        // flush re-uploads the whole note for nothing.
+        await _markSynced(id);
       }
     } catch (e) {
       debugPrint('⚠️ Lock sync failed (offline?): $e');
@@ -161,6 +231,7 @@ class DatabaseService {
       debugPrint('⚠️ No encryption key available - skipping cloud sync');
       return;
     }
+    await flushPendingSyncs();
     await _syncFromCloud();
   }
 
@@ -184,6 +255,10 @@ class DatabaseService {
         final existing = await (db.select(db.notes)
               ..where((t) => t.uuid.equals(uuid)))
             .getSingleOrNull();
+
+        // A row still waiting to upload is newer than the cloud copy by
+        // definition — let the next flush push it instead of overwriting it.
+        if (existing != null && !existing.isSynced) continue;
 
         final companion = NotesCompanion(
           id: existing != null ? Value(existing.id) : const Value.absent(),
