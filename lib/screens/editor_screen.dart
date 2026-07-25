@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/services/security/note_lock_service.dart';
@@ -30,6 +32,9 @@ class _EditorScreenState extends State<EditorScreen> {
   /// Per-note lock gate: content stays hidden until the password is entered.
   bool _unlocked = true;
 
+  /// Rendered view for markdown and field notes. Plain notes ignore it.
+  bool _rendering = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +45,9 @@ class _EditorScreenState extends State<EditorScreen> {
       _titleController.text = _note.title;
       _contentController.text = _note.content;
       _unlocked = !_note.isProtected;
+
+      // An existing typed note is opened to be read, not edited.
+      _rendering = _note.type != NoteType.plain && _note.content.isNotEmpty;
     } else {
       // CREATE MODE
       final userId = Supabase.instance.client.auth.currentUser?.id ?? "local_user";
@@ -53,6 +61,7 @@ class _EditorScreenState extends State<EditorScreen> {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         isSynced: false,
+        type: NoteType.plain,
         isLocked: false,
       );
     }
@@ -108,6 +117,46 @@ class _EditorScreenState extends State<EditorScreen> {
     
     _isSaving = false;
     return true; 
+  }
+
+  /// The type lives on the row, so an unsaved note keeps it in memory until
+  /// the first save writes it.
+  Future<void> _changeType(NoteType type) async {
+    if (type == _note.type) return;
+
+    await _saveOrDelete();
+
+    if (_note.id == -1) {
+      setState(() => _note = _note.copyWith(type: type));
+      return;
+    }
+
+    await _dbService.setNoteType(_note.id, type);
+
+    if (!mounted) return;
+    setState(() {
+      _note = _note.copyWith(type: type);
+      _rendering = false;
+    });
+  }
+
+  Future<void> _copyToClipboard(String text, String message) async {
+    await Clipboard.setData(ClipboardData(text: text));
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+    );
+  }
+
+  Future<void> _copyWholeNote() {
+    final title = _titleController.text.trim();
+    final content = _contentController.text;
+
+    return _copyToClipboard(
+      title.isEmpty ? content : '$title\n\n$content',
+      "Note copied",
+    );
   }
 
   Future<void> _unlockNote() async {
@@ -283,9 +332,49 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  /// One copy button per non-empty line, for notes used as a list of values.
+  Widget _buildFieldsView(ThemeData theme) {
+    final lines = _contentController.text
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) {
+      return Center(
+        child: Text(
+          "Nothing to copy yet",
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: lines.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final line = lines[index];
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(line, style: theme.textTheme.bodyLarge),
+          trailing: IconButton(
+            icon: const Icon(Icons.copy_outlined),
+            tooltip: 'Copy',
+            onPressed: () => _copyToClipboard(line, "Copied"),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Rendered markdown and field lists are read-only views of the same text.
+    final editing = _unlocked && !_rendering;
 
     return PopScope(
       canPop: false, 
@@ -302,6 +391,33 @@ class _EditorScreenState extends State<EditorScreen> {
       child: Scaffold(
         appBar: AppBar(
           actions: [
+            if (_unlocked && _note.type != NoteType.plain)
+              IconButton(
+                onPressed: () => setState(() => _rendering = !_rendering),
+                icon: Icon(_rendering ? Icons.edit_outlined : Icons.visibility_outlined),
+                tooltip: _rendering ? 'Edit' : 'View',
+              ),
+
+            if (_unlocked)
+              PopupMenuButton<NoteType>(
+                icon: const Icon(Icons.notes_outlined),
+                tooltip: 'Note type',
+                initialValue: _note.type,
+                onSelected: _changeType,
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: NoteType.plain, child: Text("Plain text")),
+                  PopupMenuItem(value: NoteType.markdown, child: Text("Markdown")),
+                  PopupMenuItem(value: NoteType.fields, child: Text("Copyable fields")),
+                ],
+              ),
+
+            if (_unlocked)
+              IconButton(
+                onPressed: _copyWholeNote,
+                icon: const Icon(Icons.copy_all_outlined),
+                tooltip: 'Copy note',
+              ),
+
             IconButton(
               onPressed: _note.isProtected ? _removeLock : _addLock,
               icon: Icon(
@@ -310,7 +426,7 @@ class _EditorScreenState extends State<EditorScreen> {
               tooltip: _note.isProtected ? 'Remove lock' : 'Lock note',
             ),
 
-            if (_unlocked)
+            if (editing)
             IconButton(
               onPressed: () async {
                 FocusScope.of(context).unfocus();
@@ -377,7 +493,7 @@ class _EditorScreenState extends State<EditorScreen> {
               TextField(
                 controller: _titleController,
                 focusNode: _titleFocus,
-                enabled: _unlocked, // Title stays visible, editing does not
+                enabled: editing, // Title stays visible, editing does not
                 onSubmitted: (_) {
                   FocusScope.of(context).requestFocus(_contentFocus);
                 },
@@ -390,7 +506,17 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              if (_unlocked)
+              if (_unlocked && _rendering)
+                Expanded(
+                  child: _note.type == NoteType.markdown
+                      ? Markdown(
+                          data: _contentController.text,
+                          padding: EdgeInsets.zero,
+                          selectable: true,
+                        )
+                      : _buildFieldsView(theme),
+                )
+              else if (_unlocked)
                 Expanded(
                   child: TextField(
                     controller: _contentController,

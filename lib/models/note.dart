@@ -1,3 +1,24 @@
+/// How the editor presents a note's content.
+enum NoteType {
+  /// Free text, shown as typed.
+  plain,
+
+  /// Markdown source with a rendered view.
+  markdown,
+
+  /// One copyable value per line.
+  fields;
+
+  /// Falls back to [plain] instead of throwing: an unknown name means the note
+  /// comes from a newer version of the app, not that it is broken.
+  static NoteType fromName(String? name) {
+    return NoteType.values.firstWhere(
+      (type) => type.name == name,
+      orElse: () => NoteType.plain,
+    );
+  }
+}
+
 class Note {
   /// Local database ID (Drift / SQLite)
   final int id;
@@ -19,6 +40,9 @@ class Note {
   /// Sync & state
   final bool isSynced;
 
+  /// Presentation, not content: stored in the clear like [isLocked]
+  final NoteType type;
+
   /// Lock state
   final bool isLocked;
 
@@ -36,6 +60,7 @@ class Note {
     required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
+    required this.type,
     required this.isLocked,
     this.passwordHash,
   });
@@ -51,6 +76,7 @@ class Note {
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
       isSynced: map['is_synced'] as bool? ?? false,
+      type: NoteType.fromName(map['note_type'] as String?),
       isLocked: map['is_locked'] as bool? ?? false,
       passwordHash: map['password_hash'] as String?,
     );
@@ -67,6 +93,7 @@ class Note {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_synced': isSynced,
+      'note_type': type.name,
       'is_locked': isLocked,
       'password_hash': passwordHash,
     };
@@ -82,6 +109,7 @@ class Note {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isSynced,
+    NoteType? type,
     bool? isLocked,
     String? passwordHash,
   }) {
@@ -94,6 +122,7 @@ class Note {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isSynced: isSynced ?? this.isSynced,
+      type: type ?? this.type,
       isLocked: isLocked ?? this.isLocked,
       passwordHash: passwordHash ?? this.passwordHash,
     );
@@ -110,6 +139,7 @@ class Note {
       createdAt: createdAt,
       updatedAt: updatedAt,
       isSynced: false,
+      type: type,
       isLocked: false,
     );
   }

@@ -19,6 +19,10 @@ class Notes extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
+
+  /// NoteType.name — presentation only, so it stays in the clear
+  TextColumn get noteType => text().withDefault(const Constant('plain'))();
+
   BoolColumn get isLocked => boolean().withDefault(const Constant(false))();
   TextColumn get passwordHash => text().nullable()();
 }
@@ -40,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -50,6 +54,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await migrator.createTable(pendingDeletes);
+      }
+      if (from < 4) {
+        await migrator.addColumn(notes, notes.noteType);
       }
     },
   );

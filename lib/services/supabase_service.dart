@@ -18,6 +18,7 @@ class SupabaseService {
         'content': note.content,
         'created_at': note.createdAt.toIso8601String(),
         'updated_at': note.updatedAt.toIso8601String(), // Send UTC ISO string
+        'note_type': note.type.name,
         'is_locked': note.isLocked,
         'password_hash': note.passwordHash,
       };
@@ -52,6 +53,23 @@ class SupabaseService {
       debugPrint("❌ Cloud Error (Lock sync): $e");
       // Same contract as syncNote: the caller needs to know it never landed,
       // otherwise it marks the row as synced on a failed upload.
+      rethrow;
+    }
+  }
+
+  /// Updates only the presentation type of an existing note.
+  Future<void> syncNoteType({
+    required String uuid,
+    required NoteType type,
+  }) async {
+    try {
+      await _client
+          .from('notes')
+          .update({'note_type': type.name}).eq('id', uuid);
+
+      debugPrint("☁️ Cloud: Note type synced (${type.name})");
+    } catch (e) {
+      debugPrint("❌ Cloud Error (Type sync): $e");
       rethrow;
     }
   }

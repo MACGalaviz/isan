@@ -97,6 +97,18 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _noteTypeMeta = const VerificationMeta(
+    'noteType',
+  );
+  @override
+  late final GeneratedColumn<String> noteType = GeneratedColumn<String>(
+    'note_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('plain'),
+  );
   static const VerificationMeta _isLockedMeta = const VerificationMeta(
     'isLocked',
   );
@@ -133,6 +145,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
     createdAt,
     updatedAt,
     isSynced,
+    noteType,
     isLocked,
     passwordHash,
   ];
@@ -205,6 +218,12 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
         isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
       );
     }
+    if (data.containsKey('note_type')) {
+      context.handle(
+        _noteTypeMeta,
+        noteType.isAcceptableOrUnknown(data['note_type']!, _noteTypeMeta),
+      );
+    }
     if (data.containsKey('is_locked')) {
       context.handle(
         _isLockedMeta,
@@ -261,6 +280,10 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, NoteDb> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_synced'],
       )!,
+      noteType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_type'],
+      )!,
       isLocked: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_locked'],
@@ -287,6 +310,9 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isSynced;
+
+  /// NoteType.name — presentation only, so it stays in the clear
+  final String noteType;
   final bool isLocked;
   final String? passwordHash;
   const NoteDb({
@@ -298,6 +324,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     required this.createdAt,
     required this.updatedAt,
     required this.isSynced,
+    required this.noteType,
     required this.isLocked,
     this.passwordHash,
   });
@@ -312,6 +339,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['is_synced'] = Variable<bool>(isSynced);
+    map['note_type'] = Variable<String>(noteType);
     map['is_locked'] = Variable<bool>(isLocked);
     if (!nullToAbsent || passwordHash != null) {
       map['password_hash'] = Variable<String>(passwordHash);
@@ -329,6 +357,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isSynced: Value(isSynced),
+      noteType: Value(noteType),
       isLocked: Value(isLocked),
       passwordHash: passwordHash == null && nullToAbsent
           ? const Value.absent()
@@ -350,6 +379,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
+      noteType: serializer.fromJson<String>(json['noteType']),
       isLocked: serializer.fromJson<bool>(json['isLocked']),
       passwordHash: serializer.fromJson<String?>(json['passwordHash']),
     );
@@ -366,6 +396,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isSynced': serializer.toJson<bool>(isSynced),
+      'noteType': serializer.toJson<String>(noteType),
       'isLocked': serializer.toJson<bool>(isLocked),
       'passwordHash': serializer.toJson<String?>(passwordHash),
     };
@@ -380,6 +411,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isSynced,
+    String? noteType,
     bool? isLocked,
     Value<String?> passwordHash = const Value.absent(),
   }) => NoteDb(
@@ -391,6 +423,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     isSynced: isSynced ?? this.isSynced,
+    noteType: noteType ?? this.noteType,
     isLocked: isLocked ?? this.isLocked,
     passwordHash: passwordHash.present ? passwordHash.value : this.passwordHash,
   );
@@ -404,6 +437,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
+      noteType: data.noteType.present ? data.noteType.value : this.noteType,
       isLocked: data.isLocked.present ? data.isLocked.value : this.isLocked,
       passwordHash: data.passwordHash.present
           ? data.passwordHash.value
@@ -422,6 +456,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isSynced: $isSynced, ')
+          ..write('noteType: $noteType, ')
           ..write('isLocked: $isLocked, ')
           ..write('passwordHash: $passwordHash')
           ..write(')'))
@@ -438,6 +473,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
     createdAt,
     updatedAt,
     isSynced,
+    noteType,
     isLocked,
     passwordHash,
   );
@@ -453,6 +489,7 @@ class NoteDb extends DataClass implements Insertable<NoteDb> {
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.isSynced == this.isSynced &&
+          other.noteType == this.noteType &&
           other.isLocked == this.isLocked &&
           other.passwordHash == this.passwordHash);
 }
@@ -466,6 +503,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isSynced;
+  final Value<String> noteType;
   final Value<bool> isLocked;
   final Value<String?> passwordHash;
   const NotesCompanion({
@@ -477,6 +515,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isSynced = const Value.absent(),
+    this.noteType = const Value.absent(),
     this.isLocked = const Value.absent(),
     this.passwordHash = const Value.absent(),
   });
@@ -489,6 +528,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     required DateTime createdAt,
     required DateTime updatedAt,
     this.isSynced = const Value.absent(),
+    this.noteType = const Value.absent(),
     this.isLocked = const Value.absent(),
     this.passwordHash = const Value.absent(),
   }) : uuid = Value(uuid),
@@ -506,6 +546,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isSynced,
+    Expression<String>? noteType,
     Expression<bool>? isLocked,
     Expression<String>? passwordHash,
   }) {
@@ -518,6 +559,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isSynced != null) 'is_synced': isSynced,
+      if (noteType != null) 'note_type': noteType,
       if (isLocked != null) 'is_locked': isLocked,
       if (passwordHash != null) 'password_hash': passwordHash,
     });
@@ -532,6 +574,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<bool>? isSynced,
+    Value<String>? noteType,
     Value<bool>? isLocked,
     Value<String?>? passwordHash,
   }) {
@@ -544,6 +587,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isSynced: isSynced ?? this.isSynced,
+      noteType: noteType ?? this.noteType,
       isLocked: isLocked ?? this.isLocked,
       passwordHash: passwordHash ?? this.passwordHash,
     );
@@ -576,6 +620,9 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
     if (isSynced.present) {
       map['is_synced'] = Variable<bool>(isSynced.value);
     }
+    if (noteType.present) {
+      map['note_type'] = Variable<String>(noteType.value);
+    }
     if (isLocked.present) {
       map['is_locked'] = Variable<bool>(isLocked.value);
     }
@@ -596,6 +643,7 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isSynced: $isSynced, ')
+          ..write('noteType: $noteType, ')
           ..write('isLocked: $isLocked, ')
           ..write('passwordHash: $passwordHash')
           ..write(')'))
@@ -840,6 +888,7 @@ typedef $$NotesTableCreateCompanionBuilder =
       required DateTime createdAt,
       required DateTime updatedAt,
       Value<bool> isSynced,
+      Value<String> noteType,
       Value<bool> isLocked,
       Value<String?> passwordHash,
     });
@@ -853,6 +902,7 @@ typedef $$NotesTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<bool> isSynced,
+      Value<String> noteType,
       Value<bool> isLocked,
       Value<String?> passwordHash,
     });
@@ -902,6 +952,11 @@ class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
 
   ColumnFilters<bool> get isSynced => $composableBuilder(
     column: $table.isSynced,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteType => $composableBuilder(
+    column: $table.noteType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -965,6 +1020,11 @@ class $$NotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get noteType => $composableBuilder(
+    column: $table.noteType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isLocked => $composableBuilder(
     column: $table.isLocked,
     builder: (column) => ColumnOrderings(column),
@@ -1008,6 +1068,9 @@ class $$NotesTableAnnotationComposer
 
   GeneratedColumn<bool> get isSynced =>
       $composableBuilder(column: $table.isSynced, builder: (column) => column);
+
+  GeneratedColumn<String> get noteType =>
+      $composableBuilder(column: $table.noteType, builder: (column) => column);
 
   GeneratedColumn<bool> get isLocked =>
       $composableBuilder(column: $table.isLocked, builder: (column) => column);
@@ -1054,6 +1117,7 @@ class $$NotesTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
+                Value<String> noteType = const Value.absent(),
                 Value<bool> isLocked = const Value.absent(),
                 Value<String?> passwordHash = const Value.absent(),
               }) => NotesCompanion(
@@ -1065,6 +1129,7 @@ class $$NotesTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isSynced: isSynced,
+                noteType: noteType,
                 isLocked: isLocked,
                 passwordHash: passwordHash,
               ),
@@ -1078,6 +1143,7 @@ class $$NotesTableTableManager
                 required DateTime createdAt,
                 required DateTime updatedAt,
                 Value<bool> isSynced = const Value.absent(),
+                Value<String> noteType = const Value.absent(),
                 Value<bool> isLocked = const Value.absent(),
                 Value<String?> passwordHash = const Value.absent(),
               }) => NotesCompanion.insert(
@@ -1089,6 +1155,7 @@ class $$NotesTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isSynced: isSynced,
+                noteType: noteType,
                 isLocked: isLocked,
                 passwordHash: passwordHash,
               ),

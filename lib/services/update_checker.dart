@@ -32,6 +32,8 @@ class UpdateChecker {
           downloadUrl = data['download_url_android'] ?? "";
         } else if (Platform.isWindows) {
           downloadUrl = data['download_url_windows'] ?? "";
+        } else if (Platform.isMacOS) {
+          downloadUrl = data['download_url_macos'] ?? "";
         }
 
         // No download link for this platform means nothing to offer.

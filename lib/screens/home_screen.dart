@@ -225,10 +225,17 @@ class _NoteCard extends StatelessWidget {
   final Note note;
   const _NoteCard({required this.note});
 
+  IconData? get _typeIcon => switch (note.type) {
+        NoteType.plain => null,
+        NoteType.markdown => Icons.code,
+        NoteType.fields => Icons.list_alt_outlined,
+      };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cardColor = theme.colorScheme.surfaceContainerHighest;
+    final typeIcon = _typeIcon;
 
     return GestureDetector(
       onTap: () {
@@ -258,11 +265,23 @@ class _NoteCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (typeIcon != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Icon(
+                        typeIcon,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   if (note.isProtected)
-                    Icon(
-                      Icons.lock_outline,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),

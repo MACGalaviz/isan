@@ -56,6 +56,7 @@ class DatabaseService {
       createdAt: Value(note.createdAt),
       updatedAt: Value(note.updatedAt),
       isSynced: Value(note.isSynced),
+      noteType: Value(note.type.name),
       isLocked: Value(note.isLocked),
       passwordHash: Value(note.passwordHash),
     );
@@ -147,6 +148,7 @@ class DatabaseService {
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             isSynced: true,
+            type: NoteType.fromName(row.noteType),
             isLocked: row.isLocked,
             passwordHash: row.passwordHash,
           ),
@@ -215,6 +217,33 @@ class DatabaseService {
       }
     } catch (e) {
       debugPrint('⚠️ Lock sync failed (offline?): $e');
+    }
+  }
+
+  /// Switches how the note is presented.
+  ///
+  /// Narrow write for the same reason as [setNoteLock]: the type is metadata,
+  /// so changing it must not re-encrypt the body nor bump [Note.updatedAt].
+  Future<void> setNoteType(int id, NoteType type) async {
+    await (db.update(db.notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        noteType: Value(type.name),
+        isSynced: const Value(false),
+      ),
+    );
+
+    final row = await (db.select(db.notes)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (row == null) return;
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _supabaseService.syncNoteType(uuid: row.uuid, type: type);
+        await _markSynced(id);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Type sync failed (offline?): $e');
     }
   }
 
@@ -302,6 +331,7 @@ class DatabaseService {
           createdAt: Value(createdAt),
           updatedAt: Value(updatedAt),
           isSynced: const Value(true),
+          noteType: Value(NoteType.fromName(map['note_type']).name),
           isLocked: Value(map['is_locked'] ?? false),
           passwordHash: Value(map['password_hash']),
         );
@@ -332,6 +362,7 @@ class DatabaseService {
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
+        type: NoteType.fromName(row.noteType),
         isLocked: row.isLocked,
         passwordHash: row.passwordHash,
       );
@@ -351,6 +382,7 @@ class DatabaseService {
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
+        type: NoteType.fromName(row.noteType),
         isLocked: row.isLocked,
         passwordHash: row.passwordHash,
       );

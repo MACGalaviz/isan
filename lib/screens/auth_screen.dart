@@ -512,6 +512,7 @@ class _AuthScreenState extends State<AuthScreen> {
           createdAt: noteDb.createdAt,
           updatedAt: noteDb.updatedAt,
           isSynced: false,
+          type: NoteType.fromName(noteDb.noteType),
           isLocked: noteDb.isLocked,
           passwordHash: noteDb.passwordHash,
         );
