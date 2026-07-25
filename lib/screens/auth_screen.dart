@@ -6,6 +6,7 @@ import 'package:isan/services/supabase_service.dart';
 import 'package:isan/services/security/key_manager_service.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/services/security/encryption_service.dart';
+import 'package:isan/services/security/session_key_service.dart';
 import 'package:isan/models/note.dart';
 import 'package:isan/db/database.dart';
 import 'package:cryptography/cryptography.dart';
@@ -50,17 +51,24 @@ class _AuthScreenState extends State<AuthScreen> {
     if (mounted) setState(() => _isLoading = true);
 
     String? errorMessage;
+    String? warning;
 
     if (_isLogin) {
 
-      // Guard: local-mode notes are encrypted with the device LMK.
-      // Logging into an existing account switches the session key to the
-      // account UMK, which would leave those notes permanently unreadable.
+      // Local-mode notes are encrypted with the device LMK. Signing in swaps
+      // the session key for the account UMK, so they must be re-encrypted or
+      // they become unreadable. Hold on to the LMK until that's done.
+      SecretKey? localKeyToMigrate;
+
       if (KeyManagerService.instance.currentMode == KeyMode.local) {
         final localNotes = await DatabaseService().db.select(DatabaseService().db.notes).get();
         if (localNotes.isNotEmpty) {
-          errorMessage =
-              "You have unsynced local notes. Sign Up to migrate them, or clear them before logging in.";
+          final migrate = await _confirmMigrateOnLogin(localNotes.length);
+          if (migrate != true) {
+            errorMessage = "Sign in cancelled. Your local notes are untouched.";
+          } else {
+            localKeyToMigrate = SessionKeyService.instance.key;
+          }
         }
       }
 
@@ -68,18 +76,47 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (errorMessage == null) {
         // Download and decrypt the account UMK (multi-device unlock)
-        final unlocked =
+        var unlocked =
             await KeyManagerService.instance.loginWithPassword(password: password);
-        if (unlocked) {
-          // UMK is now in session → pull encrypted notes from cloud
-          await DatabaseService().syncFromCloud();
-        } else {
+
+        if (!unlocked) {
           // Password can't unwrap the UMK (e.g. after an email password reset).
           // Offer recovery via the 12-word phrase, then re-wrap for next time.
-          final recovered = await _recoverWithPhraseFlow(password);
-          if (!recovered) {
+          unlocked = await _recoverWithPhraseFlow(password);
+          if (!unlocked) {
             errorMessage = "Could not unlock your notes.";
             await _authService.signOut();
+          }
+        }
+
+        if (unlocked) {
+          if (localKeyToMigrate != null) {
+            try {
+              await _reencryptAllNotes(
+                localKeyToMigrate,
+                SessionKeyService.instance.key,
+              );
+            } catch (e) {
+              // The notes are still LMK-encrypted, so undo the sign-in rather
+              // than leave the session holding a key that can't read them.
+              await KeyManagerService.instance.restoreLocalMode(localKeyToMigrate);
+              await _authService.signOut();
+              errorMessage = "Could not migrate your local notes: $e";
+            }
+
+            if (errorMessage == null) {
+              try {
+                await _uploadAllNotesToCloud();
+              } catch (e) {
+                // Re-encryption landed, so the notes are readable on this
+                // device; only the cloud copy is missing.
+                warning = "Signed in, but some notes couldn't upload yet.";
+              }
+            }
+          }
+
+          if (errorMessage == null) {
+            await DatabaseService().syncFromCloud();
           }
         }
       }
@@ -106,11 +143,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 password: password,
                 reencryptNotes: _reencryptAllNotes,
               );
-              
-              // After migration, sync all notes to cloud
-              debugPrint('☁️ Uploading migrated notes to cloud...');
-              await _uploadAllNotesToCloud();
-              
+
+              // Upload separately: once the migration lands the notes are
+              // readable under the UMK, so a failed upload is not a failed
+              // migration.
+              try {
+                await _uploadAllNotesToCloud();
+              } catch (e) {
+                warning = "Account created, but some notes couldn't upload yet.";
+              }
             } catch (e) {
               errorMessage = "Migration failed: $e";
               await _authService.signOut();
@@ -150,7 +191,11 @@ class _AuthScreenState extends State<AuthScreen> {
         Navigator.of(context).pop();
 
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isLogin ? "Welcome back!" : "Account created!")),
+          SnackBar(
+            content: Text(
+              warning ?? (_isLogin ? "Welcome back!" : "Account created!"),
+            ),
+          ),
         );
       }
     }
@@ -356,6 +401,32 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// Asks before pulling device-local notes into the account being signed in.
+  Future<bool?> _confirmMigrateOnLogin(int noteCount) {
+    final label = noteCount == 1 ? "note" : "notes";
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Move your local notes?"),
+        content: Text(
+          "You have $noteCount $label on this device that aren't in any "
+          "account. Signing in will move them into this one.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Move them"),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Re-encrypt all notes from old key to new key
   Future<void> _reencryptAllNotes(SecretKey oldKey, SecretKey newKey) async {
     final db = DatabaseService().db;
@@ -442,8 +513,9 @@ class _AuthScreenState extends State<AuthScreen> {
           updatedAt: noteDb.updatedAt,
           isSynced: false,
           isLocked: noteDb.isLocked,
+          passwordHash: noteDb.passwordHash,
         );
-        
+
         await supabaseService.syncNote(note);
         
         await (db.update(db.notes)..where((t) => t.id.equals(noteDb.id)))
@@ -461,6 +533,10 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     
     debugPrint('✅ Upload complete: $uploaded successful, $failed failed');
+
+    if (failed > 0) {
+      throw Exception('$failed of ${allNotes.length} notes failed to upload');
+    }
   }
 
   @override

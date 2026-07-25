@@ -340,6 +340,21 @@ class KeyManagerService {
     _cachedRecoveryPhrase = null;
   }
 
+  /// Puts the device back in local mode after a failed migration. Without it
+  /// the session holds the account UMK while the notes on disk are still
+  /// encrypted with [lmk], which makes them permanently unreadable.
+  Future<void> restoreLocalMode(SecretKey lmk) async {
+    final lmkBase64 = base64Encode(await lmk.extractBytes());
+
+    await _storage.saveMasterKey(lmkBase64);
+    await _storage.saveMode('local');
+
+    _session.setKey(lmk);
+    _currentMode = KeyMode.local;
+
+    debugPrint('↩️ Restored local mode after failed migration');
+  }
+
   /// Lock the app
   void lock() {
     _session.clear();

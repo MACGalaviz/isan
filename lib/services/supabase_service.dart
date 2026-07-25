@@ -23,12 +23,14 @@ class SupabaseService {
       };
 
       await _client.from('notes').upsert(noteData);
-      
-      debugPrint("☁️ Cloud: Note synced successfully (${note.title})");
-      
+
+      debugPrint("☁️ Cloud: Note synced successfully");
+
     } catch (e) {
       debugPrint("❌ Cloud Error (Sync): $e");
-      // Future TODO: Handle offline queue here
+      // Callers decide: saveNote tolerates offline, migration must not mark
+      // a note as synced when the upload never landed.
+      rethrow;
     }
   }
 
