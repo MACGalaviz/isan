@@ -276,6 +276,18 @@ class KeyManagerService {
 
   // MIGRATION
 
+  /// Runs [body] and tags any failure with [stage].
+  ///
+  /// Release builds silence debugPrint, so the only thing a user can report is
+  /// the message on screen. Without the tag, every failure here reads the same.
+  Future<T> _stage<T>(String stage, Future<T> Function() body) async {
+    try {
+      return await body();
+    } catch (e) {
+      throw StateError('[$stage] $e');
+    }
+  }
+
   Future<void> migrateLocalToUser({
     required String password,
     required Future<void> Function(SecretKey oldKey, SecretKey newKey) reencryptNotes,
@@ -287,43 +299,53 @@ class KeyManagerService {
     debugPrint('🔄 Starting migration: Local → User');
 
     final oldLmk = _session.key;
-    final umk = await AesGcm.with256bits().newSecretKey();
+    final umk = await _stage('new-key', () => AesGcm.with256bits().newSecretKey());
 
     debugPrint('🔄 Re-encrypting notes...');
-    await reencryptNotes(oldLmk, umk);
+    await _stage('reencrypt-notes', () => reencryptNotes(oldLmk, umk));
     debugPrint('✅ Notes re-encrypted in DB');
 
     _session.setKey(umk);
     debugPrint('✅ Session key updated to UMK');
 
-    _cachedRecoveryPhrase = _generateRecoveryPhrase();
+    final recoveryPhrase =
+        await _stage('recovery-phrase', () async => _generateRecoveryPhrase());
+    _cachedRecoveryPhrase = recoveryPhrase;
     debugPrint('🔑 Recovery phrase generated (SHOW TO USER)');
 
-    final umkBytes = await umk.extractBytes();
-    final umkBase64 = base64Encode(umkBytes);
+    final umkBase64 =
+        await _stage('extract-key', () async => base64Encode(await umk.extractBytes()));
 
     final saltPassword = _kdf.generateSalt();
     final saltRecovery = _kdf.generateSalt();
 
-    final pdk = await _kdf.deriveKey(secret: password, salt: saltPassword);
-    final rdk = await _kdf.deriveKey(secret: _cachedRecoveryPhrase!, salt: saltRecovery);
+    final pdk = await _stage(
+        'derive-password', () => _kdf.deriveKey(secret: password, salt: saltPassword));
+    final rdk = await _stage(
+        'derive-recovery', () => _kdf.deriveKey(secret: recoveryPhrase, salt: saltRecovery));
 
-    final encryptedWithPassword = await _encryption.encrypt(plainText: umkBase64, key: pdk);
-    final encryptedWithRecovery = await _encryption.encrypt(plainText: umkBase64, key: rdk);
+    final encryptedWithPassword = await _stage('wrap-password',
+        () => _encryption.encrypt(plainText: umkBase64, key: pdk));
+    final encryptedWithRecovery = await _stage('wrap-recovery',
+        () => _encryption.encrypt(plainText: umkBase64, key: rdk));
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      await Supabase.instance.client.from('user_keys').upsert({
-        'user_id': user.id,
-        'encrypted_umk_password': encryptedWithPassword,
-        'encrypted_umk_recovery': encryptedWithRecovery,
-        'salt_password': base64Encode(saltPassword),
-        'salt_recovery': base64Encode(saltRecovery),
+      await _stage('upload-keys', () async {
+        await Supabase.instance.client.from('user_keys').upsert({
+          'user_id': user.id,
+          'encrypted_umk_password': encryptedWithPassword,
+          'encrypted_umk_recovery': encryptedWithRecovery,
+          'salt_password': base64Encode(saltPassword),
+          'salt_recovery': base64Encode(saltRecovery),
+        });
       });
     }
 
-    await _storage.saveMasterKey(umkBase64);
-    await _storage.saveMode('user');
+    await _stage('save-local', () async {
+      await _storage.saveMasterKey(umkBase64);
+      await _storage.saveMode('user');
+    });
     _currentMode = KeyMode.user;
 
     debugPrint('✅ Migration complete: Local → User');

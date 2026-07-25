@@ -149,10 +149,15 @@ class _AuthScreenState extends State<AuthScreen> {
               // migration.
               try {
                 await _uploadAllNotesToCloud();
-              } catch (e) {
+              } catch (e, stackTrace) {
+                debugPrint("❌ Upload after migration failed: $e\n$stackTrace");
                 warning = "Account created, but some notes couldn't upload yet.";
               }
-            } catch (e) {
+            } catch (e, stackTrace) {
+              // The message alone never says which call threw.
+              // ignore: avoid_print
+              print("❌ Migration failed: $e\n$stackTrace"); // TEMP: release debug
+              debugPrint("❌ Migration failed: $e\n$stackTrace");
               errorMessage = "Migration failed: $e";
               await _authService.signOut();
             }
@@ -160,7 +165,8 @@ class _AuthScreenState extends State<AuthScreen> {
             // Fresh user → just create UMK
             try {
               await KeyManagerService.instance.createUserAccount(password: password);
-            } catch (e) {
+            } catch (e, stackTrace) {
+              debugPrint("❌ Encryption setup failed: $e\n$stackTrace");
               errorMessage = "Failed to create encryption: $e";
               await _authService.signOut();
             }
