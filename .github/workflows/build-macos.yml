@@ -1,0 +1,61 @@
+name: Build macOS
+
+# Flutter compiles Dart to native code against the Xcode toolchain, which only
+# runs on Apple hardware. This borrows a macOS runner so a release doesn't
+# depend on having a Mac at hand.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build
+        run: flutter build macos --release
+
+      - name: Report architectures
+        # Flutter has no "universal" switch the way electron-builder does; the
+        # slices come from Xcode's ARCHS. Expected "arm64 x86_64" so one DMG
+        # covers Apple Silicon and Intel — if this prints arm64 alone, ARCHS
+        # has to be set explicitly.
+        run: lipo -archs build/macos/Build/Products/Release/*.app/Contents/MacOS/*
+
+      - name: Sign ad-hoc
+        # Enough to launch the app. Notarization, which removes the Gatekeeper
+        # warning, needs a paid Apple Developer account.
+        run: codesign --force --deep --sign - build/macos/Build/Products/Release/*.app
+
+      - name: Package DMG
+        run: |
+          hdiutil create -volname Isan \
+            -srcfolder "$(ls -d build/macos/Build/Products/Release/*.app)" \
+            -ov -format UDZO Isan-macos.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isan-macos
+          path: Isan-macos.dmg
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Isan-macos.dmg
