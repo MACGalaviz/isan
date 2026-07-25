@@ -603,15 +603,231 @@ class NotesCompanion extends UpdateCompanion<NoteDb> {
   }
 }
 
+class $PendingDeletesTable extends PendingDeletes
+    with TableInfo<$PendingDeletesTable, PendingDelete> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PendingDeletesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [uuid, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pending_deletes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PendingDelete> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_uuidMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_deletedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {uuid};
+  @override
+  PendingDelete map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PendingDelete(
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PendingDeletesTable createAlias(String alias) {
+    return $PendingDeletesTable(attachedDatabase, alias);
+  }
+}
+
+class PendingDelete extends DataClass implements Insertable<PendingDelete> {
+  final String uuid;
+  final DateTime deletedAt;
+  const PendingDelete({required this.uuid, required this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['uuid'] = Variable<String>(uuid);
+    map['deleted_at'] = Variable<DateTime>(deletedAt);
+    return map;
+  }
+
+  PendingDeletesCompanion toCompanion(bool nullToAbsent) {
+    return PendingDeletesCompanion(
+      uuid: Value(uuid),
+      deletedAt: Value(deletedAt),
+    );
+  }
+
+  factory PendingDelete.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PendingDelete(
+      uuid: serializer.fromJson<String>(json['uuid']),
+      deletedAt: serializer.fromJson<DateTime>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'uuid': serializer.toJson<String>(uuid),
+      'deletedAt': serializer.toJson<DateTime>(deletedAt),
+    };
+  }
+
+  PendingDelete copyWith({String? uuid, DateTime? deletedAt}) => PendingDelete(
+    uuid: uuid ?? this.uuid,
+    deletedAt: deletedAt ?? this.deletedAt,
+  );
+  PendingDelete copyWithCompanion(PendingDeletesCompanion data) {
+    return PendingDelete(
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingDelete(')
+          ..write('uuid: $uuid, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(uuid, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PendingDelete &&
+          other.uuid == this.uuid &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
+  final Value<String> uuid;
+  final Value<DateTime> deletedAt;
+  final Value<int> rowid;
+  const PendingDeletesCompanion({
+    this.uuid = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PendingDeletesCompanion.insert({
+    required String uuid,
+    required DateTime deletedAt,
+    this.rowid = const Value.absent(),
+  }) : uuid = Value(uuid),
+       deletedAt = Value(deletedAt);
+  static Insertable<PendingDelete> custom({
+    Expression<String>? uuid,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (uuid != null) 'uuid': uuid,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PendingDeletesCompanion copyWith({
+    Value<String>? uuid,
+    Value<DateTime>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PendingDeletesCompanion(
+      uuid: uuid ?? this.uuid,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingDeletesCompanion(')
+          ..write('uuid: $uuid, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $NotesTable notes = $NotesTable(this);
+  late final $PendingDeletesTable pendingDeletes = $PendingDeletesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [notes];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [notes, pendingDeletes];
 }
 
 typedef $$NotesTableCreateCompanionBuilder =
@@ -898,10 +1114,157 @@ typedef $$NotesTableProcessedTableManager =
       NoteDb,
       PrefetchHooks Function()
     >;
+typedef $$PendingDeletesTableCreateCompanionBuilder =
+    PendingDeletesCompanion Function({
+      required String uuid,
+      required DateTime deletedAt,
+      Value<int> rowid,
+    });
+typedef $$PendingDeletesTableUpdateCompanionBuilder =
+    PendingDeletesCompanion Function({
+      Value<String> uuid,
+      Value<DateTime> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$PendingDeletesTableFilterComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PendingDeletesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PendingDeletesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$PendingDeletesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PendingDeletesTable,
+          PendingDelete,
+          $$PendingDeletesTableFilterComposer,
+          $$PendingDeletesTableOrderingComposer,
+          $$PendingDeletesTableAnnotationComposer,
+          $$PendingDeletesTableCreateCompanionBuilder,
+          $$PendingDeletesTableUpdateCompanionBuilder,
+          (
+            PendingDelete,
+            BaseReferences<_$AppDatabase, $PendingDeletesTable, PendingDelete>,
+          ),
+          PendingDelete,
+          PrefetchHooks Function()
+        > {
+  $$PendingDeletesTableTableManager(
+    _$AppDatabase db,
+    $PendingDeletesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingDeletesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PendingDeletesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PendingDeletesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> uuid = const Value.absent(),
+                Value<DateTime> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingDeletesCompanion(
+                uuid: uuid,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String uuid,
+                required DateTime deletedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PendingDeletesCompanion.insert(
+                uuid: uuid,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PendingDeletesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PendingDeletesTable,
+      PendingDelete,
+      $$PendingDeletesTableFilterComposer,
+      $$PendingDeletesTableOrderingComposer,
+      $$PendingDeletesTableAnnotationComposer,
+      $$PendingDeletesTableCreateCompanionBuilder,
+      $$PendingDeletesTableUpdateCompanionBuilder,
+      (
+        PendingDelete,
+        BaseReferences<_$AppDatabase, $PendingDeletesTable, PendingDelete>,
+      ),
+      PendingDelete,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
   $$NotesTableTableManager get notes =>
       $$NotesTableTableManager(_db, _db.notes);
+  $$PendingDeletesTableTableManager get pendingDeletes =>
+      $$PendingDeletesTableTableManager(_db, _db.pendingDeletes);
 }

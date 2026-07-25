@@ -23,18 +23,33 @@ class Notes extends Table {
   TextColumn get passwordHash => text().nullable()();
 }
 
-@DriftDatabase(tables: [Notes])
+/// Notes deleted locally whose cloud row is still alive.
+///
+/// Without this, deleting a note offline only removes the local copy and the
+/// next cloud pull brings it back.
+class PendingDeletes extends Table {
+  TextColumn get uuid => text()();
+  DateTimeColumn get deletedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {uuid};
+}
+
+@DriftDatabase(tables: [Notes, PendingDeletes])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (migrator, from, to) async {
       if (from < 2) {
         await migrator.addColumn(notes, notes.passwordHash);
+      }
+      if (from < 3) {
+        await migrator.createTable(pendingDeletes);
       }
     },
   );

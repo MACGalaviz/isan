@@ -99,26 +99,40 @@ class DatabaseService {
         .write(const NotesCompanion(isSynced: Value(true)));
   }
 
-  /// Uploads the notes an offline save left behind.
+  /// Replays what the app couldn't send while offline: deletions first, then
+  /// uploads.
   ///
-  /// Costs nothing but a local query when there is nothing pending, and stops
-  /// at the first failure so a dead connection means one request, not one per
-  /// note. Never throws — callers fire it and forget.
+  /// Costs nothing but two local queries when there is nothing pending, and
+  /// stops at the first failure so a dead connection means one request, not
+  /// one per note. Never throws — callers fire it and forget.
   Future<void> flushPendingSyncs() async {
     if (_isFlushing) return;
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
+    final tombstones = await db.select(db.pendingDeletes).get();
     final pending =
         await (db.select(db.notes)..where((t) => t.isSynced.equals(false)))
             .get();
-    if (pending.isEmpty) return;
+    if (tombstones.isEmpty && pending.isEmpty) return;
 
     _isFlushing = true;
-    debugPrint('☁️ Flushing ${pending.length} pending note(s)');
+    debugPrint(
+      '☁️ Flushing ${pending.length} pending note(s), '
+      '${tombstones.length} pending delete(s)',
+    );
 
     try {
+      // Deletions go first: uploading a note the user already deleted would
+      // recreate the cloud row this is meant to remove.
+      for (final tombstone in tombstones) {
+        await _supabaseService.deleteNote(tombstone.uuid);
+        await (db.delete(db.pendingDeletes)
+              ..where((t) => t.uuid.equals(tombstone.uuid)))
+            .go();
+      }
+
       for (final row in pending) {
         // Straight from the row: title and content are already ciphertext.
         // Going through _mapToModel would upload plaintext — or overwrite a
@@ -211,17 +225,30 @@ class DatabaseService {
 
     await (db.delete(db.notes)..where((t) => t.id.equals(id))).go();
 
-    if (noteDb?.uuid != null) {
-      try {
-        await _supabaseService.deleteNote(noteDb!.uuid);
-      } catch (e) {
-        debugPrint('⚠️ Failed to delete from cloud: $e');
-      }
+    if (noteDb == null) return;
+
+    // Local mode has no cloud row to delete, and no tombstone to record.
+    if (Supabase.instance.client.auth.currentUser == null) return;
+
+    try {
+      await _supabaseService.deleteNote(noteDb.uuid);
+    } catch (e) {
+      debugPrint('⚠️ Failed to delete from cloud, queued: $e');
+
+      // The cloud row outlived the local one, so the next pull would bring the
+      // note back. The tombstone both blocks that and retries the delete.
+      await db.into(db.pendingDeletes).insertOnConflictUpdate(
+            PendingDeletesCompanion.insert(
+              uuid: noteDb.uuid,
+              deletedAt: DateTime.now().toUtc(),
+            ),
+          );
     }
   }
 
   Future<void> cleanDb() async {
     await db.delete(db.notes).go();
+    await db.delete(db.pendingDeletes).go();
   }
 
   /// Public cloud sync trigger.
@@ -239,10 +266,16 @@ class DatabaseService {
     final cloudNotesData = await _supabaseService.fetchNotes();
     if (cloudNotesData.isEmpty) return;
 
+    // Notes deleted offline: the cloud still has them until the next flush.
+    final deletedUuids =
+        (await db.select(db.pendingDeletes).get()).map((t) => t.uuid).toSet();
+
     await db.transaction(() async {
       for (var map in cloudNotesData) {
         final uuid = map['id'];
         if (uuid == null || uuid is! String) continue;
+
+        if (deletedUuids.contains(uuid)) continue;
 
         final createdAt = map['created_at'] != null
             ? DateTime.parse(map['created_at']).toLocal()

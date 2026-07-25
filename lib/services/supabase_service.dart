@@ -63,6 +63,8 @@ class SupabaseService {
       debugPrint("🗑️ Cloud: Note deleted successfully");
     } catch (e) {
       debugPrint("❌ Cloud Error (Delete): $e");
+      // The caller records a tombstone when the delete never landed.
+      rethrow;
     }
   }
 
