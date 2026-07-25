@@ -41,6 +41,19 @@ class AuthService {
     }
   }
 
+  /// Sends a password reset link to the given email.
+  /// Returns null if successful, or an error message string if it fails.
+  Future<String?> resetPassword({required String email}) async {
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return "An unexpected error occurred: $e";
+    }
+  }
+
   /// Signs out the current user.
   Future<void> signOut() async {
     await _supabase.auth.signOut();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/services/auth_service.dart';
 import 'package:isan/services/supabase_service.dart';
@@ -72,12 +73,17 @@ class _AuthScreenState extends State<AuthScreen> {
         // Download and decrypt the account UMK (multi-device unlock)
         final unlocked =
             await KeyManagerService.instance.loginWithPassword(password: password);
-        if (!unlocked) {
-          errorMessage = "Could not unlock your notes. Check your password.";
-          await _authService.signOut();
-        } else {
+        if (unlocked) {
           // UMK is now in session → pull encrypted notes from cloud
           await DatabaseService().syncFromCloud();
+        } else {
+          // Password can't unwrap the UMK (e.g. after an email password reset).
+          // Offer recovery via the 12-word phrase, then re-wrap for next time.
+          final recovered = await _recoverWithPhraseFlow(password);
+          if (!recovered) {
+            errorMessage = "Could not unlock your notes.";
+            await _authService.signOut();
+          }
         }
       }
     } else {
@@ -137,14 +143,223 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } else {
+      // Signup: show the recovery phrase once before closing
+      if (!_isLogin) {
+        final phrase = KeyManagerService.instance.recoveryPhrase;
+        if (phrase != null && mounted) {
+          await _showRecoveryPhrase(phrase);
+          KeyManagerService.instance.clearRecoveryPhrase();
+        }
+      }
+
       // Success - close modal and show message
       if (mounted) {
-        Navigator.of(context).pop(); 
-        
+        Navigator.of(context).pop();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isLogin ? "Welcome back!" : "Account created!")),
         );
       }
+    }
+  }
+
+  /// Shows the recovery phrase after signup. The user must acknowledge it.
+  Future<void> _showRecoveryPhrase(String phrase) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return AlertDialog(
+          title: const Text("Save your recovery phrase"),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "If you forget your password, this phrase is the ONLY way to "
+                  "recover your notes. Write it down and keep it somewhere safe.",
+                ),
+                const SizedBox(height: 16),
+                _recoveryGrid(theme, phrase.split(' ')),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: phrase));
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text("Phrase copied")),
+                  );
+                }
+              },
+              child: const Text("Copy"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("I saved it"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Read-only 3-column grid (3 × 4) showing the numbered recovery words.
+  Widget _recoveryGrid(ThemeData theme, List<String> words) {
+    const cols = 3;
+    final rows = (words.length / cols).ceil();
+    return Column(
+      children: [
+        for (var r = 0; r < rows; r++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                for (var c = 0; c < cols; c++) ...[
+                  Expanded(
+                    child: (r * cols + c) < words.length
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${r * cols + c + 1}. ${words[r * cols + c]}',
+                              style: theme.textTheme.titleSmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        : const SizedBox(),
+                  ),
+                  if (c < cols - 1) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Recovery flow: ask for the phrase, unlock the UMK, then re-wrap the
+  /// password slot so future logins with the current password work.
+  Future<bool> _recoverWithPhraseFlow(String password) async {
+    final phrase = await _promptRecoveryPhrase();
+    if (phrase == null) return false;
+
+    final canonical =
+        phrase.trim().toLowerCase().split(RegExp(r'\s+')).join(' ');
+    if (canonical.isEmpty) return false;
+
+    final ok = await KeyManagerService.instance
+        .recoverWithPhrase(recoveryPhrase: canonical);
+    if (!ok) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Invalid recovery phrase")),
+        );
+      }
+      return false;
+    }
+
+    await KeyManagerService.instance.rewrapPasswordSlot(password: password);
+    await DatabaseService().syncFromCloud();
+    return true;
+  }
+
+  /// Prompts the user to type their 12-word recovery phrase.
+  Future<String?> _promptRecoveryPhrase() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Recover with phrase"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Your password couldn't unlock your notes. Enter your 12-word "
+              "recovery phrase to restore access.",
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 2,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: "word1 word2 word3 ...",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text("Recover"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Sends a password reset email. After resetting, the user logs in with the
+  /// new password and is prompted for their recovery phrase to unlock notes.
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(text: _emailController.text.trim());
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Reset password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "We'll email you a reset link. After resetting, log in with your "
+              "new password — you'll then be asked for your recovery phrase to "
+              "unlock your notes.",
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: "Email",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text("Send"),
+          ),
+        ],
+      ),
+    );
+
+    if (email == null || email.isEmpty) return;
+
+    final err = await _authService.resetPassword(email: email);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err ?? "Reset link sent. Check your email.")),
+      );
     }
   }
 
@@ -349,11 +564,17 @@ class _AuthScreenState extends State<AuthScreen> {
                 });
               },
               child: Text(
-                _isLogin 
-                ? "Don't have an account? Sign Up" 
+                _isLogin
+                ? "Don't have an account? Sign Up"
                 : "Already have an account? Login"
               ),
             ),
+
+            if (_isLogin)
+              TextButton(
+                onPressed: _isLoading ? null : _forgotPassword,
+                child: const Text("Forgot password?"),
+              ),
             const SizedBox(height: 24),
           ],
         ),

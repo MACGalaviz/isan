@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:math';
 import 'dart:typed_data';
+import 'package:bip39/bip39.dart' as bip39;
 import 'package:cryptography/cryptography.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:isan/services/security/encryption_service.dart';
@@ -275,6 +275,36 @@ class KeyManagerService {
   }
 
   /// ========================================================================
+  /// RE-WRAP PASSWORD SLOT
+  /// ========================================================================
+
+  /// Re-encrypt the current session UMK under a (new) password.
+  /// Called after recovering with the phrase so future password logins work
+  /// again — closes the "password changed by email reset" gap.
+  Future<void> rewrapPasswordSlot({
+    required String password,
+  }) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) throw StateError('No authenticated user');
+
+    final umkBytes = await _session.key.extractBytes();
+    final umkBase64 = base64Encode(umkBytes);
+
+    final saltPassword = _kdf.generateSalt();
+    final pdk = await _kdf.deriveKey(secret: password, salt: saltPassword);
+    final encryptedWithPassword =
+        await _encryption.encrypt(plainText: umkBase64, key: pdk);
+
+    await Supabase.instance.client.from('user_keys').update({
+      'encrypted_umk_password': encryptedWithPassword,
+      'salt_password': base64Encode(saltPassword),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('user_id', user.id);
+
+    print('✅ Password slot re-wrapped');
+  }
+
+  /// ========================================================================
   /// MIGRATION
   /// ========================================================================
 
@@ -337,19 +367,9 @@ class KeyManagerService {
   /// UTILITIES
   /// ========================================================================
 
-  /// Generate 12-word recovery phrase
+  /// Generate a BIP39 12-word recovery phrase (128-bit entropy)
   String _generateRecoveryPhrase() {
-    // Simple wordlist (in production, use BIP39)
-    final words = [
-      'apple', 'banana', 'cherry', 'dog', 'elephant', 'fish', 'grape', 'house',
-      'ice', 'jungle', 'kite', 'lemon', 'monkey', 'night', 'ocean', 'piano',
-      'queen', 'river', 'star', 'tree', 'umbrella', 'volcano', 'water', 'xylophone',
-      'yellow', 'zebra', 'garden', 'mountain', 'cloud', 'bridge', 'castle', 'diamond'
-    ];
-
-    final random = Random.secure();
-    final phrase = List.generate(12, (_) => words[random.nextInt(words.length)]);
-    return phrase.join(' ');
+    return bip39.generateMnemonic(); // defaults to 128-bit strength = 12 words
   }
 
   void clearRecoveryPhrase() {
