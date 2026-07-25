@@ -99,6 +99,21 @@ class Note {
     );
   }
 
+  /// Clears the lock. Needed because [copyWith] can't set fields back to null.
+  Note withoutLock() {
+    return Note(
+      id: id,
+      uuid: uuid,
+      userId: userId,
+      title: title,
+      content: content,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isSynced: false,
+      isLocked: false,
+    );
+  }
+
   /// Convenience helpers
   bool get isProtected => isLocked && passwordHash != null;
 }

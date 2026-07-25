@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:isan/services/database_service.dart';
 import 'package:isan/screens/home_screen.dart';
@@ -27,7 +28,12 @@ void _routeToReset() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase
+  // debugPrint still writes in release builds; silence it so the crypto and
+  // sync traces never reach a shipped device's log.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   // Implicit flow so password-recovery links carry the token in the URL and
   // work cross-device (PKCE keeps the verifier per-browser, which breaks
   // "reset on device A, open link on device B").
@@ -42,7 +48,7 @@ void main() async {
   // Route password-recovery links to the reset screen.
   // Subscribed before runApp so we don't miss the early event.
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-    print('🔔 Auth event: ${data.event}');
+    debugPrint('🔔 Auth event: ${data.event}');
     if (data.event == AuthChangeEvent.passwordRecovery) {
       _routeToReset();
     }
@@ -55,13 +61,12 @@ void main() async {
   // - Determine local vs user mode automatically
   try {
     await KeyManagerService.instance.initialize();
-    print('✅ Encryption system initialized');
+    debugPrint('✅ Encryption system initialized');
   } catch (e) {
-    print('❌ Failed to initialize encryption: $e');
+    debugPrint('❌ Failed to initialize encryption: $e');
     // App can still run, but encryption won't work
   }
 
-  // Initialize database (expects key to be ready)
   await DatabaseService().initialize();
 
   runApp(const MyApp());
@@ -72,8 +77,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We wrap MaterialApp with ValueListenableBuilder
-    // This allows the app to rebuild instantly when themeNotifier changes
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (context, currentMode, _) {
@@ -82,11 +85,9 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
 
-          // Theme Configuration
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
 
-          // The mode is now dynamic based on our notifier
           themeMode: currentMode,
 
           home: const HomeScreen(),
