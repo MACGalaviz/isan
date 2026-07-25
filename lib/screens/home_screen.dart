@@ -257,17 +257,49 @@ class _NoteCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (note.title.isNotEmpty)
-              Text(
-                note.title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      note.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  if (note.isProtected)
+                    Icon(
+                      Icons.lock_outline,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                ],
               ),
-            
+
             if (note.title.isNotEmpty && note.content.isNotEmpty)
               const SizedBox(height: 6),
 
-            if (note.content.isNotEmpty)
+            // Locked notes show the title only; the preview would defeat it.
+            if (note.isProtected)
+              Row(
+                children: [
+                  if (note.title.isEmpty)
+                    Icon(
+                      Icons.lock_outline,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Locked note",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              )
+            else if (note.content.isNotEmpty)
               Text(
                 note.content,
                 style: theme.textTheme.bodyMedium?.copyWith(

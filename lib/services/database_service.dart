@@ -96,12 +96,46 @@ class DatabaseService {
       if (query.isEmpty) return notes;
 
       final q = query.toLowerCase();
+      // Locked notes match by title only: matching their content would let
+      // the search box confirm words hidden behind the lock.
       return notes
           .where((n) =>
               n.title.toLowerCase().contains(q) ||
-              n.content.toLowerCase().contains(q))
+              (!n.isProtected && n.content.toLowerCase().contains(q)))
           .toList();
     });
+  }
+
+  /// Sets or clears the per-note password lock.
+  ///
+  /// Narrow write path on purpose: the lock is UI-only state, so it must not
+  /// re-encrypt title/content (new nonce) nor bump [Note.updatedAt].
+  /// Pass a null [passwordHash] to remove the lock.
+  Future<void> setNoteLock(int id, String? passwordHash) async {
+    await (db.update(db.notes)..where((t) => t.id.equals(id))).write(
+      NotesCompanion(
+        isLocked: Value(passwordHash != null),
+        passwordHash: Value(passwordHash),
+        isSynced: const Value(false),
+      ),
+    );
+
+    final row = await (db.select(db.notes)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (row == null) return;
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _supabaseService.syncNoteLock(
+          uuid: row.uuid,
+          isLocked: row.isLocked,
+          passwordHash: row.passwordHash,
+        );
+      }
+    } catch (e) {
+      print('⚠️ Lock sync failed (offline?): $e');
+    }
   }
 
   Future<void> deleteNote(int id) async {
@@ -196,6 +230,7 @@ class DatabaseService {
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
         isLocked: row.isLocked,
+        passwordHash: row.passwordHash,
       );
     } catch (e, stackTrace) {
       print('❌ Decryption error: $e');

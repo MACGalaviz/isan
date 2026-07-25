@@ -18,7 +18,10 @@ class SupabaseService {
         'user_id': note.userId,
         'title': note.title,
         'content': note.content,
+        'created_at': note.createdAt.toIso8601String(),
         'updated_at': note.updatedAt.toIso8601String(), // Send UTC ISO string
+        'is_locked': note.isLocked,
+        'password_hash': note.passwordHash,
       };
 
       // Perform the Upsert operation
@@ -29,6 +32,25 @@ class SupabaseService {
     } catch (e) {
       debugPrint("❌ Cloud Error (Sync): $e");
       // Future TODO: Handle offline queue here
+    }
+  }
+
+  /// Updates only the lock columns of an existing note.
+  /// Used by the per-note lock so toggling it never touches the ciphertext.
+  Future<void> syncNoteLock({
+    required String uuid,
+    required bool isLocked,
+    required String? passwordHash,
+  }) async {
+    try {
+      await _client.from('notes').update({
+        'is_locked': isLocked,
+        'password_hash': passwordHash,
+      }).eq('id', uuid);
+
+      debugPrint("☁️ Cloud: Note lock synced ($isLocked)");
+    } catch (e) {
+      debugPrint("❌ Cloud Error (Lock sync): $e");
     }
   }
 
