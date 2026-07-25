@@ -225,97 +225,16 @@ class _EditorScreenState extends State<EditorScreen> {
     String label = "Note password",
     String? helper,
   }) {
-    final controller = TextEditingController();
-
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (helper != null) ...[
-              Text(helper, style: Theme.of(ctx).textTheme.bodyMedium),
-              const SizedBox(height: 12),
-            ],
-            TextField(
-              controller: controller,
-              obscureText: true,
-              autofocus: true,
-              decoration: InputDecoration(labelText: label),
-              onSubmitted: (value) => Navigator.pop(ctx, value),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text("Confirm"),
-          ),
-        ],
-      ),
+      builder: (_) => _PasswordDialog(title: title, label: label, helper: helper),
     );
   }
 
   Future<String?> _askNewPassword() {
-    final passwordController = TextEditingController();
-    final confirmController = TextEditingController();
-    String? error;
-
     return showDialog<String>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          void submit() {
-            final password = passwordController.text;
-            if (password.isEmpty) {
-              setDialogState(() => error = "Password can't be empty");
-              return;
-            }
-            if (password != confirmController.text) {
-              setDialogState(() => error = "Passwords don't match");
-              return;
-            }
-            Navigator.pop(ctx, password);
-          }
-
-          return AlertDialog(
-            title: const Text("Lock note"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: "Password"),
-                ),
-                TextField(
-                  controller: confirmController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: "Confirm password",
-                    errorText: error,
-                  ),
-                  onSubmitted: (_) => submit(),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text("Cancel"),
-              ),
-              TextButton(onPressed: submit, child: const Text("Lock")),
-            ],
-          );
-        },
-      ),
+      builder: (_) => const _NewPasswordDialog(),
     );
   }
 
@@ -493,6 +412,134 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Single password prompt. Stateful so its controller gets disposed.
+class _PasswordDialog extends StatefulWidget {
+  final String title;
+  final String label;
+  final String? helper;
+
+  const _PasswordDialog({
+    required this.title,
+    required this.label,
+    this.helper,
+  });
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.helper != null) ...[
+            Text(widget.helper!, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+            controller: _controller,
+            obscureText: true,
+            autofocus: true,
+            decoration: InputDecoration(labelText: widget.label),
+            onSubmitted: (value) => Navigator.pop(context, value),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text("Confirm"),
+        ),
+      ],
+    );
+  }
+}
+
+/// New password + confirmation, used when locking a note.
+class _NewPasswordDialog extends StatefulWidget {
+  const _NewPasswordDialog();
+
+  @override
+  State<_NewPasswordDialog> createState() => _NewPasswordDialogState();
+}
+
+class _NewPasswordDialogState extends State<_NewPasswordDialog> {
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      setState(() => _error = "Password can't be empty");
+      return;
+    }
+    if (password != _confirmController.text) {
+      setState(() => _error = "Passwords don't match");
+      return;
+    }
+    Navigator.pop(context, password);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Lock note"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: "Password"),
+          ),
+          TextField(
+            controller: _confirmController,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: "Confirm password",
+              errorText: _error,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        TextButton(onPressed: _submit, child: const Text("Lock")),
+      ],
     );
   }
 }

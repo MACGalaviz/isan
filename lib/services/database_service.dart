@@ -231,17 +231,20 @@ class DatabaseService {
       debugPrint('❌ Decryption error: $e');
       debugPrint('Stack: $stackTrace');
 
-      // Fallback for corrupted notes
+      // Fallback for notes that failed to decrypt. Lock state mirrors the row:
+      // a failed decrypt says nothing about the per-note lock, and faking one
+      // here would drop the real password hash on the next save.
       return Note(
         id: row.id,
         uuid: row.uuid,
         userId: row.userId,
-        title: '🔒 Locked / corrupted',
-        content: '🔒 Locked / corrupted note',
+        title: '⚠️ Unreadable note',
+        content: '⚠️ This note could not be decrypted.',
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         isSynced: row.isSynced,
-        isLocked: true,
+        isLocked: row.isLocked,
+        passwordHash: row.passwordHash,
       );
     }
   }

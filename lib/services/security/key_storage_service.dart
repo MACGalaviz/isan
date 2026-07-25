@@ -2,7 +2,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Secure storage for encryption keys and metadata
 /// Stores:
-/// - Master key (LMK plaintext or UMK encrypted)
+/// - Master key (LMK or UMK, both in plaintext)
 /// - Salt (for key derivation)
 /// - Mode (local or user)
 class KeyStorageService {
@@ -18,8 +18,10 @@ class KeyStorageService {
   /// ========================================================================
 
   /// Save master key (base64 encoded)
-  /// - In local mode: stores LMK in plaintext (device-bound security)
-  /// - In user mode: stores UMK encrypted with PDK
+  ///
+  /// Plaintext in both modes — the OS keystore is the only barrier here. The
+  /// password-wrapped copy of the UMK lives in the cloud (`user_keys`); this
+  /// cache exists so the app opens offline without asking for the password.
   Future<void> saveMasterKey(String base64Key) async {
     await _storage.write(
       key: _masterKeyKey,
